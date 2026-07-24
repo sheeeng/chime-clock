@@ -1,0 +1,37 @@
+# Keep the Nix flake inputs up to date by opening a pull request on a
+# schedule. This follows the FlakeHub best practice for updating inputs.
+# https://docs.determinate.systems/flakehub/best-practices/#update-inputs
+name: Update Flake Lock
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Run weekly on Monday at 00:00 Coordinated Universal Time.
+    - cron: "0 0 * * 1"
+
+concurrency: ${{ github.workflow }}-${{ github.ref_name }}
+
+permissions: {}
+
+jobs:
+  update-flake-lock:
+    runs-on: ubuntu-latest
+    permissions:
+      # Allow the action to commit the updated lock file.
+      contents: write
+      # Allow the action to authenticate with FlakeHub.
+      id-token: write
+      # Allow the action to open and update the pull request.
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Determinate Nix
+        uses: DeterminateSystems/determinate-nix-action@d96678350ffd6a456235832eb11e1c491589b7bb # v3.21.8
+      - name: Update Flake Lock
+        uses: DeterminateSystems/update-flake-lock@834c491b2ece4de0bbd00d85214bb5e83b4da5c6 # v28
+        with:
+          pr-title: "chore(deps): update flake.lock"
+          pr-labels: |-
+            dependencies
+            automated
