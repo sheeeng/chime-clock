@@ -6,8 +6,7 @@ name: Update Flake Lock
 on:
   workflow_dispatch:
   schedule:
-    # Run weekly on Monday at 00:00 Coordinated Universal Time.
-    - cron: "0 0 * * 1"
+    - cron: "1 2 * * 3" # “At 02:01 on Wednesday.”
 
 concurrency: ${{ github.workflow }}-${{ github.ref_name }}
 
