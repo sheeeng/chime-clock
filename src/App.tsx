@@ -360,17 +360,20 @@ export default function App() {
           </div>
           <div className="pt-8 pb-4 text-center text-xs text-slate-400 dark:text-slate-500">
             <p>
-              Built from <span className="font-mono">{commitSha ?? 'dev'}</span>
-              . Made with 💚 by{' '}
-              <a
-                href="https://github.com/sheeeng/chime-time"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 underline underline-offset-2 transition-colors"
-              >
-                Leonard
-              </a>
-              .
+              Built from{' '}
+              {commitSha ? (
+                <a
+                  href={`https://github.com/sheeeng/chime-time/commit/${commitSha}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 underline underline-offset-2 transition-colors"
+                >
+                  {commitSha}
+                </a>
+              ) : (
+                'dev'
+              )}
+              . Made with 💚 by Leonard.
             </p>
           </div>
         </motion.footer>
