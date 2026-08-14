@@ -41,17 +41,28 @@ cleanup() {
     "${TEMPORARY_DIRECTORY}"
 }
 
+run_silently() {
+  local command_output
+
+  if ! command_output="$("$@" 2>&1)"; then
+    printf '%s\n' "${command_output}" >&2
+    return 1
+  fi
+}
+
 trap cleanup EXIT
 
 pushd "${SCRIPT_DIRECTORY}"
 date --universal +"%Y%m%dT%H%M%SZ"
 
-gh secret set FIREBASE_PROJECT_ID \
+run_silently gh secret set FIREBASE_PROJECT_ID \
   --env firebase \
   --repo "${REPOSITORY}" \
   --body "${PROJECT_ID}"
+printf 'Set the FIREBASE_PROJECT_ID GitHub Actions secret for %s.\n' "${REPOSITORY}"
 
-gcloud config set project "${PROJECT_ID}"
+run_silently gcloud config set project "${PROJECT_ID}"
+printf 'Set the Google Cloud project to %s.\n' "${PROJECT_ID}"
 
 USER_MANAGED_KEY_NAMES="$(
   gcloud iam service-accounts keys list \
@@ -64,21 +75,24 @@ readonly USER_MANAGED_KEY_NAMES
 
 while IFS= read -r USER_MANAGED_KEY_NAME; do
   if [ -n "${USER_MANAGED_KEY_NAME}" ]; then
-    gcloud iam service-accounts keys delete "${USER_MANAGED_KEY_NAME##*/}" \
+    run_silently gcloud iam service-accounts keys delete "${USER_MANAGED_KEY_NAME##*/}" \
       --iam-account "${SERVICE_ACCOUNT}" \
       --project "${PROJECT_ID}" \
       --quiet
+    printf 'Deleted an existing key for %s.\n' "${SERVICE_ACCOUNT}"
   fi
 done <<< "${USER_MANAGED_KEY_NAMES}"
 
-gcloud iam service-accounts keys create "${KEY_FILE}" \
+run_silently gcloud iam service-accounts keys create "${KEY_FILE}" \
   --iam-account "${SERVICE_ACCOUNT}" \
   --project "${PROJECT_ID}"
+printf 'Created one key for %s.\n' "${SERVICE_ACCOUNT}"
 
-gh secret set FIREBASE_SERVICE_ACCOUNT \
+run_silently gh secret set FIREBASE_SERVICE_ACCOUNT \
   --env firebase \
   --repo "${REPOSITORY}" \
   < "${KEY_FILE}"
+printf 'Set the FIREBASE_SERVICE_ACCOUNT GitHub Actions secret for %s.\n' "${REPOSITORY}"
 
 gh secret list \
   --env firebase \
