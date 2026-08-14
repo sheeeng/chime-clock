@@ -59,10 +59,10 @@ run_silently gh secret set FIREBASE_PROJECT_ID \
   --env firebase \
   --repo "${REPOSITORY}" \
   --body "${PROJECT_ID}"
-printf 'Set the FIREBASE_PROJECT_ID GitHub Actions secret for %s.\n' "${REPOSITORY}"
+printf 'Set the FIREBASE_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
 run_silently gcloud config set project "${PROJECT_ID}"
-printf 'Set the Google Cloud project to %s.\n' "${PROJECT_ID}"
+printf 'Set the Google Cloud project to %s for the %s repository.\n' "${PROJECT_ID}" "${REPOSITORY}"
 
 USER_MANAGED_KEY_NAMES="$(
   gcloud iam service-accounts keys list \
@@ -79,20 +79,20 @@ while IFS= read -r USER_MANAGED_KEY_NAME; do
       --iam-account "${SERVICE_ACCOUNT}" \
       --project "${PROJECT_ID}" \
       --quiet
-    printf 'Deleted an existing key for %s.\n' "${SERVICE_ACCOUNT}"
+    printf 'Deleted an existing key for the %s service account.\n' "${SERVICE_ACCOUNT}"
   fi
 done <<< "${USER_MANAGED_KEY_NAMES}"
 
 run_silently gcloud iam service-accounts keys create "${KEY_FILE}" \
   --iam-account "${SERVICE_ACCOUNT}" \
   --project "${PROJECT_ID}"
-printf 'Created one key for %s.\n' "${SERVICE_ACCOUNT}"
+printf 'Created one key for the %s service account.\n' "${SERVICE_ACCOUNT}"
 
 run_silently gh secret set FIREBASE_SERVICE_ACCOUNT \
   --env firebase \
   --repo "${REPOSITORY}" \
   < "${KEY_FILE}"
-printf 'Set the FIREBASE_SERVICE_ACCOUNT GitHub Actions secret for %s.\n' "${REPOSITORY}"
+printf 'Set the FIREBASE_SERVICE_ACCOUNT GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
 gh secret list \
   --env firebase \
