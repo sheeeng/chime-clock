@@ -1,7 +1,10 @@
 ---
 name: firebase-remote-config-basics
-description: Comprehensive guide for Firebase Remote Config, including template management and SDK usage. Use this skill when the user needs help setting up Remote Config, managing feature flags, or updating app behavior dynamically.
+description: >-
+    Manages Firebase Remote Config templates, feature flags, loading strategies, and SDKs (Android, iOS). Use when downloading/deploying remoteconfig JSON templates, managing version history/feature flags, setting in-app defaults, fetchAndActivate(), real-time listeners, or SDK setup. Don't use for Firebase Hosting, Auth, Firestore, Data Connect, Crashlytics, or App Hosting.
 compatibility: This skill is best used with the Firebase CLI, but does not require it. Firebase CLI can be accessed through `npx -y firebase-tools@latest`.
+metadata:
+    category: ApplicationDevelopment
 ---
 
 # Remote Config
@@ -76,9 +79,9 @@ history through the terminal:
 - **Get current template**: Save the remote template to a local JSON file for
   auditing or modification.
 
-  ```bash
-  npx -y firebase-tools@latest remoteconfig:get -o remote_config.json
-  ```
+    ```bash
+    npx -y firebase-tools@latest remoteconfig:get -o remote_config.json
+    ```
 
 - **Autonomous Editing & Discovery** : Modify the local `remote_config.json`
   directly. Determine the correct signal (e.g., device.country or percent) and
@@ -86,32 +89,31 @@ history through the terminal:
 
 - **MANDATORY: User Review and Verification** : STOP and ask the user to verify
   your changes before proceeding to deployment.
-
-  - Action: Inform the user: "I have prepared the changes in remote_config.json.
-    Please review the file for accuracy. Once you are satisfied, tell me to
-    'deploy' to make the changes live."
+    - Action: Inform the user: "I have prepared the changes in remote_config.json.
+      Please review the file for accuracy. Once you are satisfied, tell me to
+      'deploy' to make the changes live."
 
 - **Deployment Orchestration** : To push changes, you must ensure the
   environment is configured for deployment.
+    - Config Mapping: If a firebase.json file is missing, create one to map the
+      local JSON to the Remote Config service:
 
-  - Config Mapping: If a firebase.json file is missing, create one to map the
-    local JSON to the Remote Config service:
-
-  ```json
+    ```json
     { "remoteconfig": { "template": "remote_config.json" } }
-  ```
-
-  - Deploy: Execute the partial deployment command
-    ```bash
-    npx -y firebase-tools@latest deploy --only remoteconfig
     ```
+
+    - Deploy: Execute the partial deployment command
+
+        ```bash
+        npx -y firebase-tools@latest deploy --only remoteconfig
+        ```
 
 - **Verification**: After deployment, verify the update by listing the version
   history.
 
-  ```bash
-  npx -y firebase-tools@latest remoteconfig:versions:list
-  ```
+    ```bash
+    npx -y firebase-tools@latest remoteconfig:versions:list
+    ```
 
 The SDK provides a number of features to make your application dynamic and
 responsive to user segments.
