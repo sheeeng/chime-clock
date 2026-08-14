@@ -20,6 +20,9 @@ type BellPartial = Partial & {
   decay: number;
 };
 
+const audioAssetUrl = (path: string) =>
+  `${import.meta.env.BASE_URL}audio/${path}`;
+
 const classicBellPartials: BellPartial[] = [
   { frequency: 1181, level: 1, decay: 3.94 },
   { frequency: 772, level: 0.89, decay: 3.6 },
@@ -163,7 +166,7 @@ function playClassicRecording(
 
   classicBuffersPromise ??= Promise.all(
     ['s1', 's2', 's3', 's4'].map((segment) =>
-      fetch(`/audio/classic/${segment}.wav`)
+      fetch(audioAssetUrl(`classic/${segment}.wav`))
         .then((response) => {
           if (!response.ok) {
             throw new Error(
@@ -262,7 +265,7 @@ function playBellRecording(
   output.gain.value = 1.2;
   output.connect(destination);
 
-  bellBufferPromise ??= fetch('/audio/bell/bell.wav')
+  bellBufferPromise ??= fetch(audioAssetUrl('bell/bell.wav'))
     .then((response) => {
       if (!response.ok) {
         throw new Error(`Bell audio request failed: ${response.status}.`);
@@ -297,7 +300,7 @@ function playWestminsterRecording(context: AudioContext): ChimePlayback {
   let source: AudioBufferSourceNode | null = null;
   let stopped = false;
 
-  westminsterBufferPromise ??= fetch('/audio/westminster.mp3')
+  westminsterBufferPromise ??= fetch(audioAssetUrl('westminster.mp3'))
     .then((response) => {
       if (!response.ok) {
         throw new Error(`Westminster audio request failed: ${response.status}.`);
