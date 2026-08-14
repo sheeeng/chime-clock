@@ -39,7 +39,6 @@
               export PATH="$VERCEL_PREFIX/bin:$PATH"
 
               echo "Vercel CLI is ready to use!"
-              vercel --version
             '';
           };
         }
