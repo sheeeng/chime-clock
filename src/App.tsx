@@ -2,6 +2,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import {
+  playChime,
+  type ChimePlayback,
+  type ChimeStyle,
+  type ChimeTiming,
+} from './audio/chimes';
+import {
+  playSecondsSound,
+  type SecondsSoundStyle,
+} from './audio/seconds';
+import { OptionSelector } from './components/OptionSelector';
 
 const LogoIcon = ({ className }: { className?: string }) => (
   <svg
@@ -50,16 +61,45 @@ const commitSha = import.meta.env.VITE_GIT_COMMIT_SHA_8_CHAR as
   | string
   | undefined;
 
+const chimeModeOptions = [
+  { value: 'off', label: 'Off' },
+  { value: 15, label: 'Quarterly' },
+  { value: 30, label: 'Half-Hourly' },
+  { value: 60, label: 'Hourly' },
+] as const;
+
+const chimeStyleOptions = [
+  { value: 'bell', label: 'Bell' },
+  { value: 'classic', label: 'Classic' },
+  { value: 'cuckoo', label: 'Cuckoo' },
+  { value: 'modern', label: 'Modern' },
+  { value: 'westminster', label: 'Westminster' },
+] as const;
+
+const secondsSoundOptions = [
+  { value: 'off', label: 'Off' },
+  { value: 'mechanical', label: 'Mechanical' },
+  { value: 'cinematic', label: 'Cinematic' },
+  { value: 'textured', label: 'Textured' },
+] as const;
+
+type ChimeMode = (typeof chimeModeOptions)[number]['value'];
+
 export default function App() {
   const [time, setTime] = useState(new Date());
-  const [chimeMode, setChimeMode] = useState<'off' | 15 | 30 | 60>('off');
+  const [chimeMode, setChimeMode] = useState<ChimeMode>(60);
+  const [chimeStyle, setChimeStyle] = useState<ChimeStyle>('classic');
+  const [secondsSoundStyle, setSecondsSoundStyle] =
+    useState<SecondsSoundStyle>('off');
   const [ntpOffset, setNtpOffset] = useState<number | null>(null);
   const [ntpLoading, setNtpLoading] = useState<boolean>(true);
   const [ntpError, setNtpError] = useState<boolean>(false);
   const [ntpSource, setNtpSource] = useState<'ntp' | 'http' | null>(null);
   const [hideUI, setHideUI] = useState<boolean>(false);
   const audioCtxRef = useRef<AudioContext | null>(null);
+  const chimePlaybackRef = useRef<ChimePlayback | null>(null);
   const lastCheckedMinute = useRef<number>(new Date().getMinutes());
+  const lastCheckedSecond = useRef<number>(new Date().getSeconds());
 
   // Formatting time gracefully adapting to the user's local timezone & locale.
   const formatParts = new Intl.DateTimeFormat(undefined, {
@@ -102,6 +142,8 @@ export default function App() {
       setTime(now);
 
       let currentMinute = now.getMinutes();
+      const currentSecond = now.getSeconds();
+      const currentHour = now.getHours() % 12 || 12;
       try {
         const parts = new Intl.DateTimeFormat('en-US', {
           minute: 'numeric',
@@ -116,16 +158,29 @@ export default function App() {
       if (chimeMode !== 'off') {
         if (currentMinute !== lastCheckedMinute.current) {
           if (currentMinute % chimeMode === 0) {
-            playChime();
+            const chimeCount = chimeMode === 60 ? currentHour : 1;
+            startChime(chimeStyle, chimeCount, chimeMode);
           }
         }
       }
 
+      if (
+        secondsSoundStyle !== 'off' &&
+        currentSecond !== lastCheckedSecond.current
+      ) {
+        playSecondsSound(
+          audioCtxRef.current,
+          secondsSoundStyle,
+          currentSecond % 2,
+        );
+      }
+
       lastCheckedMinute.current = currentMinute;
+      lastCheckedSecond.current = currentSecond;
     }, 200); // 200ms ensures we capture the second change crisply.
 
     return () => clearInterval(timer);
-  }, [chimeMode]);
+  }, [chimeMode, chimeStyle, secondsSoundStyle]);
 
   // Fetch NTP Offset.
   useEffect(() => {
@@ -176,6 +231,13 @@ export default function App() {
     fetchNtpOffset();
   }, []);
 
+  useEffect(
+    () => () => {
+      chimePlaybackRef.current?.stop();
+    },
+    [],
+  );
+
   const initAudio = () => {
     if (!audioCtxRef.current) {
       const AudioContext =
@@ -187,37 +249,26 @@ export default function App() {
     }
   };
 
-  const playChime = () => {
-    if (!audioCtxRef.current) return;
-    const ctx = audioCtxRef.current;
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
+  const stopChime = () => {
+    chimePlaybackRef.current?.stop();
+    chimePlaybackRef.current = null;
+  };
 
-    // Generates a soft, pleasant 2-tone bell.
-    const playNote = (freq: number, delay: number) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-
-      gain.gain.setValueAtTime(0, ctx.currentTime + delay);
-      gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + delay + 0.05);
-      gain.gain.exponentialRampToValueAtTime(
-        0.001,
-        ctx.currentTime + delay + 2,
-      );
-
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-
-      osc.start(ctx.currentTime + delay);
-      osc.stop(ctx.currentTime + delay + 2);
-    };
-
-    playNote(523.25, 0); // C5 note.
-    playNote(659.25, 0.4); // E5 note.
+  const startChime = (
+    style: ChimeStyle,
+    count = 1,
+    mode: ChimeMode = chimeMode,
+  ) => {
+    stopChime();
+    initAudio();
+    const timing: ChimeTiming =
+      mode === 60 ? 'hour' : mode === 30 ? 'half-hour' : 'quarter';
+    chimePlaybackRef.current = playChime(
+      audioCtxRef.current,
+      style,
+      count,
+      timing,
+    );
   };
 
   return (
@@ -304,59 +355,50 @@ export default function App() {
           className="p-6 pb-12 flex flex-col items-center gap-6"
         >
           <div className="flex flex-col items-center p-6 bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/60 dark:border-zinc-800 transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4 text-zinc-500 dark:text-zinc-400">
-              {chimeMode !== 'off' ? (
-                <Bell className="w-5 h-5" />
-              ) : (
-                <BellOff className="w-5 h-5" />
-              )}
-              <span className="font-semibold uppercase tracking-widest text-xs">
-                Chime Interval
-              </span>
-            </div>
-            <div className="relative flex flex-wrap justify-center bg-zinc-100 dark:bg-zinc-800/60 rounded-2xl p-1.5 w-full sm:w-auto border border-zinc-200 dark:border-zinc-700">
-              {(
-                [
-                  { mode: 'off', label: 'Off' },
-                  { mode: 15, label: 'Quarterly' },
-                  { mode: 30, label: 'Half-Hourly' },
-                  { mode: 60, label: 'Hourly' },
-                ] as const
-              ).map(({ mode, label }) => (
-                <motion.button
-                  key={mode}
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setChimeMode(mode);
-                    if (mode !== 'off') {
-                      initAudio();
-                      playChime();
-                    }
-                  }}
-                  className={`relative flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-xl text-sm font-semibold transition-colors duration-200 z-10 ${
-                    chimeMode === mode
-                      ? 'text-zinc-900 dark:text-white'
-                      : 'text-zinc-500 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-700/50'
-                  }`}
-                >
-                  {chimeMode === mode && (
-                    <motion.div
-                      layoutId="chime-mode-active"
-                      className="absolute inset-0 bg-white dark:bg-zinc-700 rounded-xl shadow-sm ring-1 ring-black/5 dark:ring-white/10"
-                      transition={{
-                        type: 'spring',
-                        bounce: 0.2,
-                        duration: 0.6,
-                      }}
-                      style={{ zIndex: -1 }}
-                    />
-                  )}
-                  {label}
-                </motion.button>
-              ))}
-            </div>
+            <OptionSelector
+              icon={
+                chimeMode === 'off' ? (
+                  <BellOff className="w-5 h-5" />
+                ) : (
+                  <Bell className="w-5 h-5" />
+                )
+              }
+              layoutId="chime-mode-active"
+              onChange={(mode) => {
+                setChimeMode(mode);
+                if (mode !== 'off') {
+                  startChime(chimeStyle, 1, mode);
+                } else {
+                  stopChime();
+                }
+              }}
+              options={chimeModeOptions}
+              title="Chime Interval"
+              value={chimeMode}
+            />
+            <OptionSelector
+              layoutId="chime-style-active"
+              onChange={(style) => {
+                setChimeStyle(style);
+                startChime(style);
+              }}
+              options={chimeStyleOptions}
+              title="Chime Sound"
+              value={chimeStyle}
+            />
+            <OptionSelector
+              layoutId="seconds-sound-active"
+              onChange={(style) => {
+                setSecondsSoundStyle(style);
+                if (style !== 'off') {
+                  initAudio();
+                  playSecondsSound(audioCtxRef.current, style, 0);
+                }
+              }}
+              options={secondsSoundOptions}
+              title="Seconds Sound"
+              value={secondsSoundStyle}
+            />
           </div>
           <div className="pt-8 pb-4 text-center text-xs text-slate-400 dark:text-slate-500">
             <p>
