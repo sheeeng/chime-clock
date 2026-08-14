@@ -47,8 +47,8 @@ If you prefer not to install [`just`](https://github.com/casey/just), use [`npm`
 
 ## Deployments
 
-- [chime-clock-b834eba7.firebaseapp.com](https://chime-clock-b834eba7.firebaseapp.com/)
-- [chime-clock-b834eba7.web.app](https://chime-clock-b834eba7.web.app/)
+- [chime-clock.firebaseapp.com](https://chime-clock.firebaseapp.com/)
+- [chime-clock.web.app](https://chime-clock.web.app/)
 - [chime-clock.netlify.app](https://chime-clock.netlify.app/)
 - [chime-clock.vercel.app](https://chime-clock.vercel.app/)
 - [sheeeng.github.io/chime-clock](https://sheeeng.github.io/chime-clock/)
