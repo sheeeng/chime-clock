@@ -24,6 +24,7 @@ TEMPORARY_DIRECTORY="$(mktemp --directory --tmpdir="${PWD}")"
 echo "\${TEMPORARY_DIRECTORY}: ${TEMPORARY_DIRECTORY}"
 
 
+readonly GITHUB_ENVIRONMENT="firebase"
 readonly PROJECT_ID="chime-clock"
 readonly REPOSITORY="sheeeng/chime-clock"
 REPOSITORY_ID="$(gh api "repos/${REPOSITORY}" --jq '.id')"
@@ -55,8 +56,13 @@ trap cleanup EXIT
 pushd "${SCRIPT_DIRECTORY}"
 date --universal +"%Y%m%dT%H%M%SZ"
 
+run_silently gh api \
+  --method PUT \
+  "repos/${REPOSITORY}/environments/${GITHUB_ENVIRONMENT}"
+printf 'Created or updated the %s GitHub environment for the %s repository.\n' "${GITHUB_ENVIRONMENT}" "${REPOSITORY}"
+
 run_silently gh secret set FIREBASE_PROJECT_ID \
-  --env firebase \
+  --env "${GITHUB_ENVIRONMENT}" \
   --repo "${REPOSITORY}" \
   --body "${PROJECT_ID}"
 printf 'Set the FIREBASE_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
@@ -89,13 +95,13 @@ run_silently gcloud iam service-accounts keys create "${KEY_FILE}" \
 printf 'Created one key for the %s service account.\n' "${SERVICE_ACCOUNT}"
 
 run_silently gh secret set FIREBASE_SERVICE_ACCOUNT \
-  --env firebase \
+  --env "${GITHUB_ENVIRONMENT}" \
   --repo "${REPOSITORY}" \
   < "${KEY_FILE}"
 printf 'Set the FIREBASE_SERVICE_ACCOUNT GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
 gh secret list \
-  --env firebase \
+  --env "${GITHUB_ENVIRONMENT}" \
   --repo "${REPOSITORY}"
 
 popd || exit
