@@ -233,7 +233,7 @@ export default function App() {
           <div className="flex items-center gap-2.5 text-zinc-800 dark:text-zinc-200">
             <LogoIcon className="w-6 h-6" />
             <span className="text-xl font-semibold tracking-tight">
-              Chime Time
+              Chime Clock
             </span>
           </div>
         </motion.header>
@@ -363,7 +363,7 @@ export default function App() {
               Built from{' '}
               {commitSha ? (
                 <a
-                  href={`https://github.com/sheeeng/chime-time/commit/${commitSha}`}
+                  href={`https://github.com/sheeeng/chime-clock/commit/${commitSha}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 no-underline transition-colors"

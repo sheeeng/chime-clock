@@ -1,14 +1,14 @@
-# Chime Time
+# Chime Clock
 
-Chime Time is a simple client-side application built with React and Tailwind CSS that displays the current time with configurable chimes.
+Chime Clock is a simple client-side application built with React and Tailwind CSS that displays the current time with configurable chimes.
 
 ## Run Locally
 
 1. Clone the repository.
 
     ```shell
-    git clone https://github.com/sheeeng/chime-time.git
-    cd chime-time
+    git clone https://github.com/sheeeng/chime-clock.git
+    cd chime-clock
     ```
 
 2. Install [just](https://github.com/casey/just).
@@ -47,11 +47,11 @@ If you prefer not to install [`just`](https://github.com/casey/just), use [`npm`
 
 ## Deployments
 
-- [chime-time-b834eba7.firebaseapp.com](https://chime-time-b834eba7.firebaseapp.com/)
-- [chime-time-b834eba7.web.app](https://chime-time-b834eba7.web.app/)
-- [chime-time.netlify.app](https://chime-time.netlify.app/)
-- [chime-time.vercel.app](https://chime-time.vercel.app/)
-- [sheeeng.github.io/chime-time](https://sheeeng.github.io/chime-time/)
+- [chime-clock-b834eba7.firebaseapp.com](https://chime-clock-b834eba7.firebaseapp.com/)
+- [chime-clock-b834eba7.web.app](https://chime-clock-b834eba7.web.app/)
+- [chime-clock.netlify.app](https://chime-clock.netlify.app/)
+- [chime-clock.vercel.app](https://chime-clock.vercel.app/)
+- [sheeeng.github.io/chime-clock](https://sheeeng.github.io/chime-clock/)
 
 ## License
 

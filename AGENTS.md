@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Chime Time is a React and TypeScript web application that displays an
+Chime Clock is a React and TypeScript web application that displays an
 animated digital clock with configurable audio chimes. An Express
 server provides a backend NTP synchronization endpoint. The Vite
 development server is embedded in the Express application, so a single

@@ -47,7 +47,7 @@ jobs:
       - name: Build
         run: npm run build
         env:
-          VITE_BASE_PATH: /chime-time/
+          VITE_BASE_PATH: /chime-clock/
           VITE_GIT_COMMIT_SHA_8_CHAR: ${{ steps.set-build-information.outputs.commit_sha_8_char }}
 
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
