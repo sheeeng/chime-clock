@@ -281,9 +281,9 @@ export default function App() {
           transition={{ duration: 0.8, ease: 'easeOut' }}
           className="p-6 flex items-center justify-center"
         >
-          <div className="flex items-center gap-2.5 text-zinc-800 dark:text-zinc-200">
-            <LogoIcon className="w-6 h-6" />
-            <span className="text-xl font-semibold tracking-tight">
+          <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
+            <LogoIcon className="h-8 w-8" />
+            <span className="text-3xl font-semibold tracking-tight">
               Chime Clock
             </span>
           </div>
