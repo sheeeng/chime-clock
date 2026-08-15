@@ -87,7 +87,7 @@ type ChimeMode = (typeof chimeModeOptions)[number]['value'];
 
 export default function App() {
   const [time, setTime] = useState(new Date());
-  const [chimeMode, setChimeMode] = useState<ChimeMode>(60);
+  const [chimeMode, setChimeMode] = useState<ChimeMode>('off');
   const [chimeStyle, setChimeStyle] = useState<ChimeStyle>('classic');
   const [secondsSoundStyle, setSecondsSoundStyle] =
     useState<SecondsSoundStyle>('off');
@@ -376,16 +376,29 @@ export default function App() {
               title="Chime Interval"
               value={chimeMode}
             />
-            <OptionSelector
-              layoutId="chime-style-active"
-              onChange={(style) => {
-                setChimeStyle(style);
-                startChime(style);
-              }}
-              options={chimeStyleOptions}
-              title="Chime Sound"
-              value={chimeStyle}
-            />
+            <AnimatePresence initial={false}>
+              {chimeMode !== 'off' && (
+                <motion.div
+                  key="chime-sound"
+                  initial={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0, overflow: 'hidden' }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className="flex w-full justify-center"
+                >
+                  <OptionSelector
+                    layoutId="chime-style-active"
+                    onChange={(style) => {
+                      setChimeStyle(style);
+                      startChime(style);
+                    }}
+                    options={chimeStyleOptions}
+                    title="Chime Sound"
+                    value={chimeStyle}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
             <OptionSelector
               layoutId="seconds-sound-active"
               onChange={(style) => {
