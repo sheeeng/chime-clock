@@ -25,11 +25,11 @@ echo "\${TEMPORARY_DIRECTORY}: ${TEMPORARY_DIRECTORY}"
 
 
 readonly GITHUB_ENVIRONMENT="firebase"
-readonly PROJECT_ID="chime-clock"
+readonly GOOGLE_CLOUD_PROJECT_ID="chime-clock"
 readonly REPOSITORY="sheeeng/chime-clock"
 REPOSITORY_ID="$(gh api "repos/${REPOSITORY}" --jq '.id')"
 readonly REPOSITORY_ID
-readonly SERVICE_ACCOUNT="github-action-${REPOSITORY_ID}@${PROJECT_ID}.iam.gserviceaccount.com"
+readonly SERVICE_ACCOUNT="github-action-${REPOSITORY_ID}@${GOOGLE_CLOUD_PROJECT_ID}.iam.gserviceaccount.com"
 KEY_FILE="$(mktemp)"
 readonly KEY_FILE
 
@@ -61,20 +61,20 @@ run_silently gh api \
   "repos/${REPOSITORY}/environments/${GITHUB_ENVIRONMENT}"
 printf 'Created or updated the %s GitHub environment for the %s repository.\n' "${GITHUB_ENVIRONMENT}" "${REPOSITORY}"
 
-run_silently gh secret set FIREBASE_PROJECT_ID \
+run_silently gh secret set FIREBASE_GOOGLE_CLOUD_PROJECT_ID \
   --env "${GITHUB_ENVIRONMENT}" \
   --repo "${REPOSITORY}" \
-  --body "${PROJECT_ID}"
-printf 'Set the FIREBASE_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
+  --body "${GOOGLE_CLOUD_PROJECT_ID}"
+printf 'Set the FIREBASE_GOOGLE_CLOUD_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
-run_silently gcloud config set project "${PROJECT_ID}"
-printf 'Set the Google Cloud project to %s for the %s repository.\n' "${PROJECT_ID}" "${REPOSITORY}"
+run_silently gcloud config set project "${GOOGLE_CLOUD_PROJECT_ID}"
+printf 'Set the Google Cloud project to %s for the %s repository.\n' "${GOOGLE_CLOUD_PROJECT_ID}" "${REPOSITORY}"
 
 USER_MANAGED_KEY_NAMES="$(
   gcloud iam service-accounts keys list \
     --iam-account "${SERVICE_ACCOUNT}" \
     --managed-by user \
-    --project "${PROJECT_ID}" \
+    --project "${GOOGLE_CLOUD_PROJECT_ID}" \
     --format 'value(name)'
 )"
 readonly USER_MANAGED_KEY_NAMES
@@ -83,7 +83,7 @@ while IFS= read -r USER_MANAGED_KEY_NAME; do
   if [ -n "${USER_MANAGED_KEY_NAME}" ]; then
     run_silently gcloud iam service-accounts keys delete "${USER_MANAGED_KEY_NAME##*/}" \
       --iam-account "${SERVICE_ACCOUNT}" \
-      --project "${PROJECT_ID}" \
+      --project "${GOOGLE_CLOUD_PROJECT_ID}" \
       --quiet
     printf 'Deleted an existing key for the %s service account.\n' "${SERVICE_ACCOUNT}"
   fi
@@ -91,7 +91,7 @@ done <<< "${USER_MANAGED_KEY_NAMES}"
 
 run_silently gcloud iam service-accounts keys create "${KEY_FILE}" \
   --iam-account "${SERVICE_ACCOUNT}" \
-  --project "${PROJECT_ID}"
+  --project "${GOOGLE_CLOUD_PROJECT_ID}"
 printf 'Created one key for the %s service account.\n' "${SERVICE_ACCOUNT}"
 
 run_silently gh secret set FIREBASE_SERVICE_ACCOUNT \
