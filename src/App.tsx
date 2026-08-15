@@ -279,7 +279,7 @@ export default function App() {
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
-          className="p-6 flex items-center justify-between"
+          className="p-6 flex items-center justify-center"
         >
           <div className="flex items-center gap-2.5 text-zinc-800 dark:text-zinc-200">
             <LogoIcon className="w-6 h-6" />
