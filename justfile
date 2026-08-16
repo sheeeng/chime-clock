@@ -22,5 +22,8 @@ preview:
 lint:
   npm run lint
 
+test:
+  npm test
+
 clean:
   npm run clean
