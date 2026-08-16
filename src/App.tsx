@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Bell, BellOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
+  getHourlyChimeCount,
   playChime,
   type ChimePlayback,
   type ChimeStyle,
@@ -143,7 +144,7 @@ export default function App() {
 
       let currentMinute = now.getMinutes();
       const currentSecond = now.getSeconds();
-      const currentHour = now.getHours() % 12 || 12;
+      const currentHour = getHourlyChimeCount(now);
       try {
         const parts = new Intl.DateTimeFormat('en-US', {
           minute: 'numeric',
@@ -367,7 +368,9 @@ export default function App() {
               onChange={(mode) => {
                 setChimeMode(mode);
                 if (mode !== 'off') {
-                  startChime(chimeStyle, 1, mode);
+                  const chimeCount =
+                    mode === 60 ? getHourlyChimeCount(new Date()) : 1;
+                  startChime(chimeStyle, chimeCount, mode);
                 } else {
                   stopChime();
                 }

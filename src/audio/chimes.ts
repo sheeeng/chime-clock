@@ -11,6 +11,10 @@ export type ChimePlayback = {
 
 export type ChimeTiming = 'half-hour' | 'hour' | 'quarter';
 
+export function getHourlyChimeCount(date: Date): number {
+  return date.getHours() % 12 || 12;
+}
+
 type Partial = {
   frequency: number;
   level: number;
