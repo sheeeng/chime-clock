@@ -87,11 +87,23 @@ printf '%s' "${VERCEL_ORGANIZATION_ID}" \
     --repo "${REPOSITORY}"
 printf 'Set the VERCEL_ORG_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
+printf '%s' "${VERCEL_ORGANIZATION_ID}" \
+  | run_silently gh secret set VERCEL_ORG_ID \
+    --app dependabot \
+    --repo "${REPOSITORY}"
+printf 'Set the VERCEL_ORG_ID Dependabot secret for the %s repository.\n' "${REPOSITORY}"
+
 printf '%s' "${VERCEL_PROJECT_ID}" \
   | run_silently gh secret set VERCEL_PROJECT_ID \
     --env "${GITHUB_ENVIRONMENT}" \
     --repo "${REPOSITORY}"
 printf 'Set the VERCEL_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
+
+printf '%s' "${VERCEL_PROJECT_ID}" \
+  | run_silently gh secret set VERCEL_PROJECT_ID \
+    --app dependabot \
+    --repo "${REPOSITORY}"
+printf 'Set the VERCEL_PROJECT_ID Dependabot secret for the %s repository.\n' "${REPOSITORY}"
 
 printf '%s' "${VERCEL_TOKEN}" \
   | run_silently gh secret set VERCEL_TOKEN \
@@ -99,6 +111,16 @@ printf '%s' "${VERCEL_TOKEN}" \
     --repo "${REPOSITORY}"
 printf 'Set the VERCEL_TOKEN GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
+printf '%s' "${VERCEL_TOKEN}" \
+  | run_silently gh secret set VERCEL_TOKEN \
+    --app dependabot \
+    --repo "${REPOSITORY}"
+printf 'Set the VERCEL_TOKEN Dependabot secret for the %s repository.\n' "${REPOSITORY}"
+
 gh secret list \
   --env "${GITHUB_ENVIRONMENT}" \
+  --repo "${REPOSITORY}"
+
+gh secret list \
+  --app dependabot \
   --repo "${REPOSITORY}"
