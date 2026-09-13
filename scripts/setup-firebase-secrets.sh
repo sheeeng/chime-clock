@@ -67,6 +67,12 @@ run_silently gh secret set FIREBASE_GOOGLE_CLOUD_PROJECT_ID \
   --body "${GOOGLE_CLOUD_PROJECT_ID}"
 printf 'Set the FIREBASE_GOOGLE_CLOUD_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
+run_silently gh secret set FIREBASE_GOOGLE_CLOUD_PROJECT_ID \
+  --app dependabot \
+  --repo "${REPOSITORY}" \
+  --body "${GOOGLE_CLOUD_PROJECT_ID}"
+printf 'Set the FIREBASE_GOOGLE_CLOUD_PROJECT_ID Dependabot secret for the %s repository.\n' "${REPOSITORY}"
+
 run_silently gcloud config set project "${GOOGLE_CLOUD_PROJECT_ID}"
 printf 'Set the Google Cloud project to %s for the %s repository.\n' "${GOOGLE_CLOUD_PROJECT_ID}" "${REPOSITORY}"
 
@@ -100,8 +106,18 @@ run_silently gh secret set FIREBASE_SERVICE_ACCOUNT \
   < "${KEY_FILE}"
 printf 'Set the FIREBASE_SERVICE_ACCOUNT GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
+run_silently gh secret set FIREBASE_SERVICE_ACCOUNT \
+  --app dependabot \
+  --repo "${REPOSITORY}" \
+  < "${KEY_FILE}"
+printf 'Set the FIREBASE_SERVICE_ACCOUNT Dependabot secret for the %s repository.\n' "${REPOSITORY}"
+
 gh secret list \
   --env "${GITHUB_ENVIRONMENT}" \
+  --repo "${REPOSITORY}"
+
+gh secret list \
+  --app dependabot \
   --repo "${REPOSITORY}"
 
 popd || exit
