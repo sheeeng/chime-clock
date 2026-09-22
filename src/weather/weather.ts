@@ -23,15 +23,8 @@ type WeatherSymbol = {
 };
 
 type WeatherEntry = {
-  time?: string;
-  data?: {
-    instant?: {
-      details?: Record<string, unknown>;
-    };
-    next_1_hours?: WeatherSymbol;
-    next_6_hours?: WeatherSymbol;
-    next_12_hours?: WeatherSymbol;
-  };
+  time: string;
+  data?: unknown;
 };
 
 type WeatherForecast = {
@@ -79,36 +72,58 @@ export function parseWeather(
   const timeseries = getTimeseries(forecast);
   const currentEntry = selectNearestEntry(timeseries, now);
   const details = getInstantDetails(currentEntry);
+  const data = getRecord(currentEntry.data);
   const primarySymbol = getPrimarySymbolCode(currentEntry);
   const condition = describeSymbolCode(primarySymbol);
+  const airTemperature = requireFiniteNumber(
+    details.air_temperature,
+    'air_temperature',
+  );
+  const pressure = requireFiniteNumber(
+    details.air_pressure_at_sea_level,
+    'air_pressure_at_sea_level',
+  );
+  const cloudCover = requireFiniteNumber(
+    details.cloud_area_fraction,
+    'cloud_area_fraction',
+  );
+  const humidity = requireFiniteNumber(
+    details.relative_humidity,
+    'relative_humidity',
+  );
+  const windSpeed = requireFiniteNumber(details.wind_speed, 'wind_speed');
+  const windDirection = requireFiniteNumber(
+    details.wind_from_direction,
+    'wind_from_direction',
+  );
 
   return {
     forecastTime: compactIso(currentEntry.time),
     forecastTimeLabel: formatForecastTimeLabel(currentEntry.time),
     summary: [
       'Current Location 📍',
-      `${formatFiniteNumber(getNumber(details.air_temperature))}°C`,
+      `${formatFiniteNumber(airTemperature)}°C`,
       `${condition.condition} ${condition.emoji}`.trim(),
-      `Wind ${formatFiniteNumber(getNumber(details.wind_speed))} m/s from ${toCompassDirection(getNumber(details.wind_from_direction))}`,
+      `Wind ${formatFiniteNumber(windSpeed)} m/s from ${toCompassDirection(windDirection)}`,
     ],
     details: [
       {
         label: 'Pressure',
-        value: `${formatFiniteNumber(getNumber(details.air_pressure_at_sea_level))} hPa`,
+        value: `${formatFiniteNumber(pressure)} hPa`,
       },
       {
         label: 'Cloud cover',
-        value: `${formatFiniteNumber(getNumber(details.cloud_area_fraction))}%`,
+        value: `${formatFiniteNumber(cloudCover)}%`,
       },
       {
         label: 'Humidity',
-        value: `${formatFiniteNumber(getNumber(details.relative_humidity))}%`,
+        value: `${formatFiniteNumber(humidity)}%`,
       },
     ],
     periods: [
-      buildPeriod('Next Hour', currentEntry.data?.next_1_hours),
-      buildPeriod('Next 6 Hours', currentEntry.data?.next_6_hours),
-      buildPeriod('Next 12 Hours', currentEntry.data?.next_12_hours),
+      buildPeriod('Next Hour', data.next_1_hours),
+      buildPeriod('Next 6 Hours', data.next_6_hours),
+      buildPeriod('Next 12 Hours', data.next_12_hours),
     ],
   };
 }
@@ -146,14 +161,22 @@ export function getSeasonFromForecast(
 }
 
 function getTimeseries(forecast: unknown): WeatherEntry[] {
-  const properties = getRecord(forecast)?.properties;
-  const timeseries = properties && getRecord(properties)?.timeseries;
+  const properties = getRecord(forecast).properties;
+  const timeseries = getRecord(properties).timeseries;
 
   if (!Array.isArray(timeseries) || timeseries.length === 0) {
     throw new Error('A time series is required.');
   }
 
-  return timeseries as WeatherEntry[];
+  return timeseries.map((entry) => {
+    const record = getRecord(entry);
+    const time = requireForecastTime(record.time);
+
+    return {
+      time,
+      data: record.data,
+    };
+  });
 }
 
 function selectNearestEntry(timeseries: readonly WeatherEntry[], now: Date) {
@@ -174,22 +197,25 @@ function selectNearestEntry(timeseries: readonly WeatherEntry[], now: Date) {
 }
 
 function getInstantDetails(entry: WeatherEntry) {
-  return getRecord(entry.data?.instant?.details);
+  return getRecord(getRecord(getRecord(entry.data).instant).details);
 }
 
 function getPrimarySymbolCode(entry: WeatherEntry) {
+  const data = getRecord(entry.data);
+
   return (
-    entry.data?.next_1_hours?.summary?.symbol_code ??
-    entry.data?.next_6_hours?.summary?.symbol_code ??
-    entry.data?.next_12_hours?.summary?.symbol_code ??
+    getSymbolCode(data.next_1_hours) ??
+    getSymbolCode(data.next_6_hours) ??
+    getSymbolCode(data.next_12_hours) ??
     ''
   );
 }
 
-function buildPeriod(label: string, period?: WeatherSymbol) {
-  const symbolCode = period?.summary?.symbol_code ?? '';
+function buildPeriod(label: string, period?: unknown) {
+  const symbolCode = getSymbolCode(period) ?? '';
   const condition = describeSymbolCode(symbolCode);
-  const precipitation = period?.details?.precipitation_amount;
+  const precipitation = getRecord(getRecord(period).details)
+    .precipitation_amount;
 
   return {
     label,
@@ -244,13 +270,13 @@ function formatFallbackCondition(symbolCode: string) {
 
 function formatForecastTimeLabel(value: string) {
   const date = new Date(value);
-  const dateLabel = new Intl.DateTimeFormat('en-US', {
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
     month: 'long',
     day: 'numeric',
     year: 'numeric',
     timeZone: 'UTC',
   }).format(date);
-  const timeLabel = new Intl.DateTimeFormat('en-US', {
+  const timeLabel = new Intl.DateTimeFormat(undefined, {
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
@@ -285,14 +311,15 @@ function getFutureDailyMeans(
 
   timeseries.forEach((entry) => {
     const time = entry.time;
-    if (!time || dayKey(time) <= anchorDay) {
+    if (dayKey(time) <= anchorDay) {
       return;
     }
 
-    const temperature = getNumber(entry.data?.instant?.details?.air_temperature);
-    if (!Number.isFinite(temperature)) {
-      return;
-    }
+    const instant = getRecord(entry.data).instant;
+    const temperature = requireFiniteNumber(
+      getRecord(getRecord(instant).details).air_temperature,
+      'air_temperature',
+    );
 
     const key = dayKey(time);
     const values = groups.get(key);
@@ -319,14 +346,37 @@ function dayKey(value: string) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
-function getNumber(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
-}
-
 function getRecord(value: unknown) {
-  return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  return isRecord(value) ? value : {};
 }
 
-function toTime(value: string | undefined) {
-  return value ? new Date(value).getTime() : Number.NaN;
+function getSymbolCode(value: unknown) {
+  const summary = getRecord(getRecord(value).summary);
+  const symbolCode = summary.symbol_code;
+
+  return typeof symbolCode === 'string' ? symbolCode : undefined;
+}
+
+function requireFiniteNumber(value: unknown, fieldName: string) {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    throw new Error(`Malformed weather data: ${fieldName} must be a finite number.`);
+  }
+
+  return value;
+}
+
+function requireForecastTime(value: unknown) {
+  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) {
+    throw new Error('Malformed weather data: time must be a valid ISO timestamp.');
+  }
+
+  return value;
+}
+
+function toTime(value: string) {
+  return new Date(value).getTime();
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object';
 }

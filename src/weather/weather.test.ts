@@ -5,7 +5,7 @@ type TimeseriesEntry = {
   time: string;
   data: {
     instant: {
-      details: Record<string, number>;
+      details: Record<string, unknown>;
     };
     next_1_hours?: {
       summary: {
@@ -38,7 +38,7 @@ function createForecast(
   temperatures: readonly number[],
   options: {
     includePeriods?: boolean;
-    firstEntryDetails?: Record<string, number>;
+    firstEntryDetails?: Record<string, unknown>;
     firstEntryTime?: string;
     dailyHour?: number;
   } = {},
@@ -169,6 +169,56 @@ describe('parseWeather', () => {
         },
       ],
     });
+  });
+
+  it('rejects malformed numeric data', () => {
+    const forecast = createForecast([14.4, 11, 12, 13, 14, 15, 16, 17], {
+      firstEntryDetails: {
+        air_pressure_at_sea_level: 1026.5,
+        cloud_area_fraction: 38.8,
+        relative_humidity: 47.5,
+        wind_speed: 3.2,
+        wind_from_direction: 202.5,
+      },
+    });
+
+    expect(() => parseWeather(forecast)).toThrow('air_temperature');
+  });
+
+  it('uses the runtime locale when formatting the forecast time label', () => {
+    const forecast = createForecast([14.4, 11, 12, 13, 14, 15, 16, 17], {
+      firstEntryTime: '2026-09-22T12:00:00Z',
+    });
+    const originalDateTimeFormat = Intl.DateTimeFormat;
+    const locales: unknown[] = [];
+
+    function MockDateTimeFormat(
+      this: unknown,
+      locale?: string | string[],
+      options?: Intl.DateTimeFormatOptions,
+    ) {
+      locales.push(locale);
+
+      return new originalDateTimeFormat(locale, options);
+    }
+
+    try {
+      Object.defineProperty(Intl, 'DateTimeFormat', {
+        configurable: true,
+        value: MockDateTimeFormat,
+      });
+
+      expect(parseWeather(forecast, new Date('2026-09-22T12:20:00Z')))
+        .toMatchObject({
+          forecastTimeLabel: 'September 22, 2026, at 12:00 UTC',
+        });
+      expect(locales).toEqual([undefined, undefined]);
+    } finally {
+      Object.defineProperty(Intl, 'DateTimeFormat', {
+        configurable: true,
+        value: originalDateTimeFormat,
+      });
+    }
   });
 
   it('rejects a missing time series', () => {
