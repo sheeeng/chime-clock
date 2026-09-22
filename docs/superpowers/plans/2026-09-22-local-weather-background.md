@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add browser location weather, forecast period cards, and persistent optional Three UI seasonal backgrounds to Chime Clock.
+**Goal:** Add browser location weather, forecast period cards, persistent optional Three UI seasonal backgrounds, and Digital, Analog, and Cuckoo clock modes to Chime Clock.
 
-**Architecture:** Pure weather functions parse MET Norway responses and classify seasons. A geolocation hook owns permission and network effects, a presentational panel renders weather states, and a lazy seasonal background component mounts the exact self hosted Three UI scene. `App.tsx` coordinates the saved background preference without moving clock or chime behavior out of its existing component.
+**Architecture:** Pure weather functions parse MET Norway responses and classify seasons. A geolocation hook owns permission and network effects, a presentational panel renders weather states, and a lazy seasonal background component mounts the exact self hosted Three UI scene. A second lazy Three.js renderer loads either a wall clock or cuckoo clock model and adds procedural synchronized hands. `App.tsx` coordinates saved weather, background, clock mode, and chime animation state without moving existing audio behavior out of its component.
 
-**Tech Stack:** React 19, TypeScript 7, Tailwind CSS 4, Vite 8, Vitest 5, Testing Library, browser Geolocation API, browser Permissions API, MET Norway Locationforecast 2.0 Compact API, Three.js r149 through the exact Three UI registered source.
+**Tech Stack:** React 19, TypeScript 7, Tailwind CSS 4, Vite 8, Vitest 5, Testing Library, browser Geolocation API, browser Permissions API, MET Norway Locationforecast 2.0 Compact API, Three.js for clock models, and Three.js r149 through the exact Three UI registered source.
 
 **Spec:** `docs/superpowers/specs/2026-09-22-local-weather-background-design.md`
 
@@ -23,7 +23,14 @@
 - Preserve the exact registered Three UI source files and verify their SHA-256 hashes.
 - Keep the clock, NTP synchronization, chimes, and interface hiding behavior operational when weather or scene loading fails.
 - Attribute weather data to MET Norway and active seasonal backgrounds to Three UI.
-- Do not add a weather cache, reverse geocoding service, state management library, or new runtime dependency.
+- Support clock modes in this order: `analog`, `cuckoo`, and `digital`.
+- Use `digital` as the first visit clock mode and save the selection in local storage.
+- Use the supplied Simple Wall Clock and Cuckoo Clock archives as self hosted assets.
+- Add procedural synchronized hands to both 3D clocks.
+- Animate one cuckoo bird cycle per chime strike and stop the sequence when playback stops.
+- Credit FFeller and Jerovdl under the Creative Commons Attribution license.
+- Do not add a weather cache, reverse geocoding service, state management
+  library, or runtime dependency other than `three`.
 
 ---
 
@@ -39,6 +46,15 @@
 - `src/seasonal/background.test.ts`: Preference and mapping tests.
 - `src/seasonal/SeasonalBackground.tsx`: Lazy scene mounting and readability wash.
 - `src/seasonal/SeasonalBackground.test.tsx`: Scene loading and inactive state tests.
+- `src/clock/clockMode.ts`: Clock mode types and local storage persistence.
+- `src/clock/clockMode.test.ts`: Clock mode preference tests.
+- `src/clock/ThreeClock.tsx`: Three.js model renderer, procedural dial and hands, and cuckoo animation.
+- `src/clock/ThreeClock.test.ts`: Pure hand rotation and cuckoo timing tests.
+- `src/clock/ClockDisplay.tsx`: Lazy Digital, Analog, and Cuckoo display selection.
+- `src/clock/ClockDisplay.test.tsx`: Mode selection and lazy loading tests.
+- `public/models/analog/`: Optimized Simple Wall Clock FBX and textures.
+- `public/models/cuckoo/`: Optimized Cuckoo Clock FBX and textures.
+- `public/models/ATTRIBUTION.md`: Model authors, source URLs, and CC BY terms.
 - `src/shaders/sylva-living-world/SylvaLivingWorldScene.tsx`: Exact registered Three UI component.
 - `src/shaders/sylva-living-world/sources/inner-green-3d.html`: Exact canonical scene source.
 - `src/shaders/sylva-living-world/sources/inner-green-assets/three.min.js`: Exact Three.js r149 runtime.
@@ -686,7 +702,336 @@ git commit --signoff --message "feat(background): add seasonal scenes"
 
 ---
 
-### Task 6: Application Integration
+### Task 6: Clock Mode Preference
+
+**Files:**
+- Create: `src/clock/clockMode.ts`
+- Create: `src/clock/clockMode.test.ts`
+
+**Interfaces:**
+- Produces:
+
+```ts
+export type ClockMode = 'analog' | 'cuckoo' | 'digital';
+
+export const CLOCK_MODE_STORAGE_KEY = 'chime-clock-mode';
+
+export const clockModeOptions: readonly {
+  value: ClockMode;
+  label: string;
+}[];
+
+export function readClockMode(
+  storage: Pick<Storage, 'getItem'>,
+): ClockMode;
+
+export function writeClockMode(
+  storage: Pick<Storage, 'setItem'>,
+  mode: ClockMode,
+): void;
+```
+
+- [ ] **Step 1: Write failing clock mode tests**
+
+Assert:
+
+```ts
+expect(clockModeOptions.map(({ label }) => label)).toEqual([
+  'Analog',
+  'Cuckoo',
+  'Digital',
+]);
+expect(readClockMode(storageWith(null))).toBe('digital');
+expect(readClockMode(storageWith('analog'))).toBe('analog');
+expect(readClockMode(storageWith('invalid'))).toBe('digital');
+```
+
+Assert that `writeClockMode` stores the selected value under
+`chime-clock-mode`.
+
+- [ ] **Step 2: Run the tests and verify failure**
+
+Run:
+
+```shell
+npm test -- src/clock/clockMode.test.ts
+```
+
+Expected: FAIL because `clockMode.ts` does not exist.
+
+- [ ] **Step 3: Implement the preference module**
+
+Use a constant set of valid modes and return `digital` for missing or invalid
+stored values.
+
+- [ ] **Step 4: Run the clock mode tests**
+
+Run:
+
+```shell
+npm test -- src/clock/clockMode.test.ts
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit the clock mode preference**
+
+```shell
+git add src/clock/clockMode.ts src/clock/clockMode.test.ts
+git commit --signoff --message "feat(clock): save display mode"
+```
+
+---
+
+### Task 7: Prepare 3D Clock Assets
+
+**Files:**
+- Create: `public/models/analog/wall-clock.fbx`
+- Create: `public/models/analog/clock-base-color.png`
+- Create: `public/models/analog/clock-normal.png`
+- Create: `public/models/analog/clock-metallic.png`
+- Create: `public/models/analog/clock-roughness.png`
+- Create: `public/models/cuckoo/cuckoo-clock.fbx`
+- Create: `public/models/cuckoo/cuckoo-base-color.png`
+- Create: `public/models/cuckoo/cuckoo-normal.png`
+- Create: `public/models/cuckoo/cuckoo-orm.png`
+- Create: `public/models/ATTRIBUTION.md`
+
+**Interfaces:**
+- Consumes:
+  - `/Users/leonardlee/Downloads/simple-wall-clock.zip`
+  - `/Users/leonardlee/Downloads/cuckoo-clock.zip`
+- Produces: Self hosted model URLs under `${import.meta.env.BASE_URL}models/`.
+
+- [ ] **Step 1: Extract the model archives outside the repository**
+
+Use a temporary directory:
+
+```shell
+temporary_directory=$(mktemp -d)
+unzip '/Users/leonardlee/Downloads/cuckoo-clock.zip' \
+  -d "$temporary_directory/cuckoo"
+unzip '/Users/leonardlee/Downloads/simple-wall-clock.zip' \
+  -d "$temporary_directory/analog"
+unrar x \
+  "$temporary_directory/analog/source/Meshy_AI_Blurred_Time_0615101307_texture_fbx.rar" \
+  "$temporary_directory/analog/source/"
+```
+
+- [ ] **Step 2: Copy model files and resize textures**
+
+Create the destination directories, copy each FBX file, and use `sips` to
+resize textures to a maximum width and height of 1024 pixels while preserving
+their formats:
+
+```shell
+mkdir --parents public/models/analog public/models/cuckoo
+cp "$temporary_directory/cuckoo/source/cuckoo clock.fbx" \
+  public/models/cuckoo/cuckoo-clock.fbx
+cp "$temporary_directory/analog/source/Meshy_AI_Blurred_Time_0615101307_texture_fbx/Meshy_AI_Blurred_Time_0615101307_texture.fbx" \
+  public/models/analog/wall-clock.fbx
+```
+
+Map the inner Simple Wall Clock textures to the four `clock-*` names and the
+Cuckoo Clock textures to the three `cuckoo-*` names. Run:
+
+```shell
+sips --resampleHeightWidthMax 1024 source.png --out destination.png
+```
+
+for every copied texture. Do not commit either original archive, the nested
+RAR file, or extracted duplicate textures.
+
+- [ ] **Step 3: Add model attribution**
+
+Create `public/models/ATTRIBUTION.md` with:
+
+```markdown
+# Model Attribution
+
+## Cuckoo Clock
+
+["Cuckoo Clock"][cuckoo-clock] by FFeller is licensed under
+[Creative Commons Attribution][cc-by].
+
+## Simple Wall Clock
+
+["Simple Wall Clock"][simple-wall-clock] by Jerovdl is licensed under
+[Creative Commons Attribution][cc-by].
+
+[cc-by]: http://creativecommons.org/licenses/by/4.0/
+[cuckoo-clock]: https://skfb.ly/6AWAF
+[simple-wall-clock]: https://skfb.ly/pL9IG
+```
+
+- [ ] **Step 4: Verify model structure and asset sizes**
+
+Install the Three.js runtime:
+
+```shell
+npm install three
+```
+
+Use `FBXLoader` in a one-time Node.js inspection script. Confirm the Cuckoo
+Clock includes `CuckooClock`, `arm`, `arm001`, `face`, and `door`. Confirm the
+Simple Wall Clock loads as one mesh.
+
+Run:
+
+```shell
+du --human-readable public/models/analog/* public/models/cuckoo/*
+```
+
+Expected: No committed texture exceeds its original dimensions, and no archive
+file appears under `public/models/`.
+
+- [ ] **Step 5: Commit model assets**
+
+```shell
+git add package.json package-lock.json public/models
+git commit --signoff --message "feat(clock): add licensed 3d models"
+```
+
+---
+
+### Task 8: Three.js Analog and Cuckoo Clock
+
+**Files:**
+- Create: `src/clock/ThreeClock.tsx`
+- Create: `src/clock/ThreeClock.test.ts`
+- Create: `src/clock/ClockDisplay.tsx`
+- Create: `src/clock/ClockDisplay.test.tsx`
+
+**Interfaces:**
+- Consumes:
+
+```ts
+type ChimeAnimation = {
+  id: number;
+  strikes: number;
+};
+
+type ClockDisplayProps = {
+  mode: ClockMode;
+  time: Date;
+  chimeAnimation: ChimeAnimation | null;
+};
+```
+
+- Produces:
+
+```ts
+export function getHandRotations(date: Date): {
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+export function getCuckooAnimation(
+  elapsedMilliseconds: number,
+  strikes: number,
+): {
+  active: boolean;
+  birdOffset: number;
+  doorRotation: number;
+};
+```
+
+- [ ] **Step 1: Write failing time and cuckoo animation tests**
+
+Assert:
+
+```ts
+expect(getHandRotations(new Date('2026-09-22T03:15:30Z'))).toEqual({
+  hour: expect.closeTo(
+    -((3 + 15 / 60 + 30 / 3600) / 12) * Math.PI * 2,
+  ),
+  minute: expect.closeTo(-((15 + 30 / 60) / 60) * Math.PI * 2),
+  second: expect.closeTo(-Math.PI),
+});
+```
+
+Use local date construction if the test environment changes UTC parsing.
+
+For `getCuckooAnimation`, define a one-second cycle:
+
+- 0 to 250 milliseconds: door opens and bird moves out.
+- 250 to 500 milliseconds: bird remains out.
+- 500 to 750 milliseconds: bird returns and door closes.
+- 750 to 1,000 milliseconds: closed pause.
+
+Assert two strikes remain active before 2,000 milliseconds and become inactive
+at 2,000 milliseconds. Assert zero strikes is always inactive.
+
+- [ ] **Step 2: Run the clock tests and verify failure**
+
+Run:
+
+```shell
+npm test -- src/clock/ThreeClock.test.ts src/clock/ClockDisplay.test.tsx
+```
+
+Expected: FAIL because the clock components do not exist.
+
+- [ ] **Step 3: Implement the Three.js renderer**
+
+Use `FBXLoader` from `three/examples/jsm/loaders/FBXLoader.js`. Create the
+renderer, scene, perspective camera, ambient light, directional light, resize
+observer, and animation frame loop inside one effect. Dispose geometries,
+materials, textures, renderer, animation frames, and observers during cleanup.
+
+Normalize the loaded model with `Box3` so its largest dimension fits a stable
+camera frame.
+
+For both models:
+
+1. Add a circular procedural dial slightly in front of the model face.
+2. Add hour, minute, and second hand meshes.
+3. Update their rotations from `getHandRotations(time)` during render.
+
+For the Cuckoo model:
+
+1. Hide `arm` and `arm001`.
+2. Keep a reference to `door`.
+3. Create a small wooden bird from sphere, cone, and box geometries.
+4. Place it behind the door.
+5. On a new `chimeAnimation.id`, save the animation start time.
+6. Apply `getCuckooAnimation` on each frame.
+7. Reset the door and bird when the sequence completes or the component
+   unmounts.
+
+Load textures manually from `${import.meta.env.BASE_URL}models/` and apply
+them to the loaded meshes. Use sRGB color space for base color textures and
+linear color space for normal, roughness, metallic, and ORM textures.
+
+- [ ] **Step 4: Implement lazy display selection**
+
+`ClockDisplay.tsx` renders the existing digital JSX for `digital`. Lazy import
+`ThreeClock` for `analog` and `cuckoo`. Use a stable 16:10 container with an
+accessible loading label while the model downloads.
+
+Do not load `three`, `FBXLoader`, or model assets in Digital mode.
+
+- [ ] **Step 5: Run focused clock tests**
+
+Run:
+
+```shell
+npm test -- src/clock/ThreeClock.test.ts src/clock/ClockDisplay.test.tsx
+```
+
+Expected: PASS.
+
+- [ ] **Step 6: Commit 3D clock rendering**
+
+```shell
+git add src/clock
+git commit --signoff --message "feat(clock): render analog clock modes"
+```
+
+---
+
+### Task 9: Application Integration
 
 **Files:**
 - Modify: `src/App.tsx`
@@ -702,6 +1047,10 @@ git commit --signoff --message "feat(background): add seasonal scenes"
   - `resolveInitialBackground`
   - `resolveSeason`
   - `SeasonalBackground`
+  - `ClockDisplay`
+  - `clockModeOptions`
+  - `readClockMode`
+  - `writeClockMode`
 
 - Produces: The complete user flow without changing public clock or chime
   interfaces.
@@ -725,6 +1074,11 @@ Add tests that assert:
 6. Clicking the weather panel or background selector does not hide the
    interface.
 7. Existing NTP, chime, seconds sound, and clock visibility tests still pass.
+8. Digital mode is the first visit default.
+9. Selecting Analog or Cuckoo saves the mode and renders the lazy 3D clock.
+10. An hourly chime emits a cuckoo animation event with the hour strike count.
+11. Quarterly and half hourly chimes emit one cuckoo animation cycle.
+12. Disabling chimes cancels the active cuckoo animation.
 
 - [ ] **Step 2: Run the application tests and verify failure**
 
@@ -739,6 +1093,7 @@ Expected: New weather and background assertions fail.
 - [ ] **Step 3: Integrate state into `App.tsx`**
 
 Add `Trees` from `lucide-react`.
+Add `Clock3` from `lucide-react`.
 
 Initialize the saved preference once:
 
@@ -774,6 +1129,18 @@ Render `SeasonalBackground` as the first child of the root. Add
 Render `WeatherPanel` below the date and above NTP status while `hideUI` is
 false.
 
+Replace the current digital clock JSX with `ClockDisplay`. Pass the existing
+`time`, selected clock mode, and current chime animation event. Preserve the
+existing digital markup inside the Digital branch so typography and animation
+remain unchanged.
+
+Initialize clock mode with `readClockMode(window.localStorage)` and save each
+change with `writeClockMode`.
+
+When `startChime` runs, increment a chime event identifier and store the strike
+count. Clear that event in `stopChime`. This makes the cuckoo animation follow
+both scheduled chimes and preview actions without changing audio scheduling.
+
 Add an `OptionSelector` titled `Background` below `Seconds Sound`:
 
 ```tsx
@@ -784,6 +1151,19 @@ Add an `OptionSelector` titled `Background` below `Seconds Sound`:
   options={backgroundOptions}
   title="Background"
   value={backgroundMode}
+/>
+```
+
+Add a `Clock` selector before `Chime Interval`:
+
+```tsx
+<OptionSelector
+  icon={<Clock3 className="h-5 w-5" />}
+  layoutId="clock-mode-active"
+  onChange={handleClockModeChange}
+  options={clockModeOptions}
+  title="Clock"
+  value={clockMode}
 />
 ```
 
@@ -804,12 +1184,12 @@ Expected: PASS.
 
 ```shell
 git add src/App.tsx src/App.test.tsx
-git commit --signoff --message "feat(app): integrate weather background"
+git commit --signoff --message "feat(app): integrate clocks and weather"
 ```
 
 ---
 
-### Task 7: Documentation and Final Verification
+### Task 10: Documentation and Final Verification
 
 **Files:**
 - Modify: `README.md`
@@ -830,6 +1210,10 @@ Document:
 - The local storage key `chime-clock-background`.
 - Three UI and MET Norway attribution.
 - The fact that all scene assets are self hosted.
+- Digital, Analog, and Cuckoo clock modes.
+- Clock mode persistence under `chime-clock-mode`.
+- Cuckoo bird behavior for hourly, quarterly, and half hourly chimes.
+- FFeller and Jerovdl model attribution under CC BY.
 
 Add this Nushell debugging example:
 
@@ -881,6 +1265,11 @@ Check at desktop and 390 pixel mobile widths:
 8. Clicking weather and settings does not hide the interface.
 9. Clicking the clock canvas still toggles the interface.
 10. NTP synchronization and audio previews still work.
+11. Digital mode does not request 3D model assets.
+12. Analog and Cuckoo modes load only their selected model.
+13. Analog and Cuckoo hands match the digital time.
+14. The cuckoo bird completes one cycle per active chime strike.
+15. Reload restores the saved clock mode.
 
 - [ ] **Step 4: Verify source integrity**
 
@@ -904,6 +1293,7 @@ git --no-pager diff origin/main...HEAD --stat
 git --no-pager log --oneline origin/main..HEAD
 ```
 
-Expected: Only the planned weather, seasonal background, tests, Vite adapter,
-and documentation changes appear. Existing `.firebase/` and `extracted/`
-directories remain untracked and unmodified.
+Expected: Only the planned weather, seasonal background, 3D clock assets,
+tests, Vite adapter, dependency lock changes, and documentation changes
+appear. Existing `.firebase/` and `extracted/` directories remain untracked
+and unmodified.

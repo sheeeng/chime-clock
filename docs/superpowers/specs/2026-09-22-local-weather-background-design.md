@@ -2,10 +2,10 @@
 
 ## Purpose
 
-Add local weather information and optional seasonal backgrounds to Chime Clock.
-The weather display will use the browser location and the MET Norway
-Locationforecast Compact API. The background will use the exact self hosted
-Three UI Sylva Living World source.
+Add local weather information, optional seasonal backgrounds, and three clock
+display modes to Chime Clock. The weather display will use the browser location
+and the MET Norway Locationforecast Compact API. The background will use the
+exact self hosted Three UI Sylva Living World source.
 
 ## Weather Behavior
 
@@ -73,6 +73,39 @@ that supports light and dark color schemes.
 
 Show `Seasonal background by Three UI.` when a seasonal scene is active.
 
+## Clock Modes
+
+Add a Clock selector with these options in this order:
+
+- `Analog`
+- `Cuckoo`
+- `Digital`
+
+Use `Digital` as the first visit default and save the selected mode in local
+storage.
+
+The Analog mode will use ["Simple Wall Clock"][simple-wall-clock] by Jerovdl.
+The source model contains one combined mesh, so the application will place a
+procedural dial and synchronized hour, minute, and second hands in front of the
+model.
+
+The Cuckoo mode will use ["Cuckoo Clock"][cuckoo-clock] by FFeller. The source
+model contains separate clock body, face, hand, and door meshes but no separate
+bird mesh. Hide the static hand meshes, add synchronized procedural hands, and
+add a small procedural wooden bird behind the animated door.
+
+The cuckoo bird will animate only when a chime plays. It will complete one out
+and back cycle for each strike. Quarterly and half hourly chimes use one cycle.
+Hourly chimes use the current hour count, including twelve cycles at noon and
+midnight. Stopping or disabling a chime will stop the active bird sequence.
+
+Load Three.js and each model only when its clock mode is active. Resize the
+model textures before committing them so the original 17 MB and 41 MB archives
+are not shipped directly. Keep the model files and optimized textures self
+hosted.
+
+Credit both models under the [Creative Commons Attribution][cc-by] license.
+
 ## Components and Data Flow
 
 Add a weather module for:
@@ -91,6 +124,11 @@ Add a seasonal background component that lazy loads the copied Three UI scene.
 The application owns the saved background setting and passes the active season
 to the background component.
 
+Add a clock mode module for persistent mode selection. Add one Three.js clock
+component that loads the selected model, creates a procedural dial and hands,
+and receives the current time. The component also receives a numbered chime
+event with a strike count so each event starts one cancellable cuckoo sequence.
+
 ## Testing
 
 Add unit tests for:
@@ -107,5 +145,14 @@ Add component tests for:
 - The `Dynamic` selection requesting location.
 - Manual season selection without a location request.
 - Saved background selection restoration.
+- Digital mode as the first visit default.
+- Saved Analog and Cuckoo mode restoration.
+- Analog hand rotation from the current time.
+- One cuckoo cycle per chime strike.
+- Cancellation of an active cuckoo sequence when playback stops.
 
 Run the existing type check, tests, and production build.
+
+[cc-by]: http://creativecommons.org/licenses/by/4.0/
+[cuckoo-clock]: https://skfb.ly/6AWAF
+[simple-wall-clock]: https://skfb.ly/pL9IG
