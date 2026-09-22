@@ -1,4 +1,5 @@
 import { execSync } from 'child_process';
+import { readFileSync } from 'node:fs';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -16,7 +17,22 @@ if (!process.env.VITE_GIT_COMMIT_SHA_8_CHAR) {
 export default defineConfig(() => {
   return {
     base: process.env.VITE_BASE_PATH || '/',
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      {
+        name: 'remove-unused-sylva-font',
+        enforce: 'pre',
+        load(id) {
+          if (!id.endsWith('inner-green-3d.html?raw')) return null;
+          const source = readFileSync(id.slice(0, -4), 'utf8').replace(
+            /@font-face\s*\{[^}]*lexend-latin\.woff2[^}]*\}/,
+            '',
+          );
+          return `export default ${JSON.stringify(source)};`;
+        },
+      },
+      react(),
+      tailwindcss(),
+    ],
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
