@@ -731,7 +731,7 @@ export function writeClockMode(
 ): void;
 ```
 
-- [ ] **Step 1: Write failing clock mode tests**
+- [x] **Step 1: Write failing clock mode tests**
 
 Assert:
 
@@ -749,7 +749,7 @@ expect(readClockMode(storageWith('invalid'))).toBe('digital');
 Assert that `writeClockMode` stores the selected value under
 `chime-clock-mode`.
 
-- [ ] **Step 2: Run the tests and verify failure**
+- [x] **Step 2: Run the tests and verify failure**
 
 Run:
 
@@ -759,12 +759,12 @@ npm test -- src/clock/clockMode.test.ts
 
 Expected: FAIL because `clockMode.ts` does not exist.
 
-- [ ] **Step 3: Implement the preference module**
+- [x] **Step 3: Implement the preference module**
 
 Use a constant set of valid modes and return `digital` for missing or invalid
 stored values.
 
-- [ ] **Step 4: Run the clock mode tests**
+- [x] **Step 4: Run the clock mode tests**
 
 Run:
 
@@ -774,7 +774,7 @@ npm test -- src/clock/clockMode.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the clock mode preference**
+- [x] **Step 5: Commit the clock mode preference**
 
 ```shell
 git add src/clock/clockMode.ts src/clock/clockMode.test.ts
