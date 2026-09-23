@@ -161,6 +161,7 @@ type CuckooParts = {
   bird: THREE.Object3D;
   birdRestZ: number;
   birdTravel: number;
+  frameBox: THREE.Box3;
 };
 
 type ClockScene = {
@@ -500,6 +501,7 @@ function createCuckooParts(model: THREE.Object3D): CuckooParts | null {
     CUCKOO_ENLARGEMENT_SCALE;
 
   const doorPivot = createDoorPivot(door);
+  const frameBox = new THREE.Box3().setFromObject(model);
 
   const bird = createBird(scale);
   const birdRestZ = doorBox.min.z - scale * 1.6;
@@ -508,7 +510,7 @@ function createCuckooParts(model: THREE.Object3D): CuckooParts | null {
   bird.visible = false;
   model.add(bird);
 
-  return { doorPivot, bird, birdRestZ, birdTravel };
+  return { doorPivot, bird, birdRestZ, birdTravel, frameBox };
 }
 
 /**
@@ -550,10 +552,11 @@ async function buildClockScene(mode: ThreeClockMode): Promise<ClockScene> {
     : modelBox;
 
   const cuckoo = mode === 'cuckoo' ? createCuckooParts(model) : null;
+  const rootBox = cuckoo?.frameBox ?? modelBox;
   const { dial, hands } = createDial(faceBox, description.dialRadiusRatio);
   model.add(dial);
 
-  return { root: normalizeModel(model, modelBox), hands, cuckoo };
+  return { root: normalizeModel(model, rootBox), hands, cuckoo };
 }
 
 export default function ThreeClock({

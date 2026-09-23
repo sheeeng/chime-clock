@@ -373,7 +373,7 @@ describe('ThreeClock lifecycle', () => {
       expect(bird.visible).toBe(false);
     });
 
-    it('clears the enlarged door opening once fully out and returns fully inside', async () => {
+    it('uses the enlarged door geometry for bird travel', async () => {
       render(
         <ThreeClock
           mode="cuckoo"
@@ -383,13 +383,18 @@ describe('ThreeClock lifecycle', () => {
       );
       await waitForReadyClock();
 
+      const birdScale =
+        Math.min(modeledDoorSize.x, modeledDoorSize.y) *
+        0.34 *
+        CUCKOO_ENLARGEMENT_SCALE;
+      const expectedRestZ = 4.5 - birdScale * 1.6;
+      const expectedTravel = 5.5 - expectedRestZ + birdScale * 1.3;
+
       now = 250;
       stepFrame();
       const { bird: birdOut } = cuckooParts();
 
-      // 5.5 is the door's enlarged far face (its world maximum z); the bird
-      // clears it with room to spare once fully out.
-      expect(birdOut.position.z).toBeGreaterThan(5.5);
+      expect(birdOut.position.z).toBeCloseTo(expectedRestZ + expectedTravel);
       expect(birdOut.position.x).toBeCloseTo(0);
       expect(birdOut.visible).toBe(true);
 
@@ -397,7 +402,7 @@ describe('ThreeClock lifecycle', () => {
       stepFrame();
       const { bird: birdIn } = cuckooParts();
 
-      expect(birdIn.position.z).toBeLessThan(4.5);
+      expect(birdIn.position.z).toBeCloseTo(expectedRestZ);
       expect(birdIn.visible).toBe(false);
     });
   });
