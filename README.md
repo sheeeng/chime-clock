@@ -59,9 +59,10 @@ The weather panel shows current conditions for the browser's reported
 location. Enabling it requests the browser's location permission, and once
 granted, the panel shows the current temperature, condition, wind, pressure,
 cloud cover, and humidity, along with forecasts for the next hour, the next
-six hours, and the next twelve hours. Every reading comes from [MET
-Norway][met-norway]'s Locationforecast API, credited in an attribution line
-below the current reading.
+six hours, and the next twelve hours. The first current conditions card is
+labeled exactly `Current Location 📍`. The forecast timestamp and
+`Obtained from MET Norway.` appear before the current conditions cards.
+Every reading comes from [MET Norway][met-norway]'s Locationforecast API.
 
 On a first visit, the `Background` selector defaults to `None` while the
 browser's location permission is still at `prompt`, and to `Dynamic` once the
@@ -72,10 +73,12 @@ Selecting `Dynamic` requests the browser's location and renders a season
 computed from the forecast. Selecting a named season renders it immediately
 and never requests location access. If the browser denies a request made
 while `Dynamic` is selected, the selector returns to `None`, and that choice
-is saved; a transient failure, an unsupported browser, or a later location
-prompt leaves a saved `Dynamic` choice in place, and the weather panel offers
-a way to try again. The chosen background persists in local storage under the
-key `chime-clock-background`, and reloading the page restores it.
+is saved; a transient failure leaves a saved `Dynamic` choice in place, and
+the user can retry by selecting `Dynamic` again in the `Background`
+selector. Unsupported and refused states do not offer a retry callback, and
+the weather panel error state has no retry button. The chosen background
+persists in local storage under the key `chime-clock-background`, and
+reloading the page restores it.
 
 `Dynamic` derives the season from the daily mean temperatures for the next
 seven days in the forecast. A mean above ten degrees Celsius on every one of
@@ -157,6 +160,13 @@ let first_forecast = $data.properties.timeseries.0
   next_12_hours: $first_forecast.data.next_12_hours
 }
 ```
+
+## Task 10 Report
+
+- Documented the weather card label, MET Norway attribution order, and retry
+  behavior in the local weather section.
+- Kept the existing reference links and the Nushell debugging example in
+  place.
 
 ## Lazy Loading and Self-Hosted Assets
 
