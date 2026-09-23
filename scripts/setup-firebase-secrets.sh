@@ -76,6 +76,26 @@ printf 'Set the FIREBASE_GOOGLE_CLOUD_PROJECT_ID Dependabot secret for the %s re
 run_silently gcloud config set project "${GOOGLE_CLOUD_PROJECT_ID}"
 printf 'Set the Google Cloud project to %s for the %s repository.\n' "${GOOGLE_CLOUD_PROJECT_ID}" "${REPOSITORY}"
 
+if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT}" \
+  --project "${GOOGLE_CLOUD_PROJECT_ID}" > /dev/null 2>&1; then
+  run_silently gcloud iam service-accounts create "github-action-${REPOSITORY_ID}" \
+    --display-name "GitHub Actions (${REPOSITORY})" \
+    --project "${GOOGLE_CLOUD_PROJECT_ID}"
+  printf 'Created the %s service account.\n' "${SERVICE_ACCOUNT}"
+else
+  printf 'The %s service account already exists.\n' "${SERVICE_ACCOUNT}"
+fi
+
+run_silently gcloud projects add-iam-policy-binding "${GOOGLE_CLOUD_PROJECT_ID}" \
+  --member "serviceAccount:${SERVICE_ACCOUNT}" \
+  --role "roles/firebasehosting.admin"
+printf 'Granted roles/firebasehosting.admin to %s.\n' "${SERVICE_ACCOUNT}"
+
+run_silently gcloud projects add-iam-policy-binding "${GOOGLE_CLOUD_PROJECT_ID}" \
+  --member "serviceAccount:${SERVICE_ACCOUNT}" \
+  --role "roles/firebase.viewer"
+printf 'Granted roles/firebase.viewer to %s.\n' "${SERVICE_ACCOUNT}"
+
 USER_MANAGED_KEY_NAMES="$(
   gcloud iam service-accounts keys list \
     --iam-account "${SERVICE_ACCOUNT}" \
