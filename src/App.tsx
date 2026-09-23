@@ -27,7 +27,6 @@ import { SeasonalBackground } from './seasonal/SeasonalBackground';
 import {
   backgroundOptions,
   readBackgroundPreference,
-  resolveInitialBackground,
   resolveSeason,
   writeBackgroundPreference,
   type BackgroundMode,
@@ -107,17 +106,10 @@ function nextChimeAnimation(strikes: number): ChimeAnimation {
 
 /**
  * Returns the callback that asks the browser for a location, when the weather
- * feed is in a state that offers one: a prompt it has not yet raised, or a
- * failure that asking again could get past. A refusal and an environment
- * without geolocation offer nothing, because neither has anything left to
- * ask.
+ * feed has failed and another location attempt could recover it.
  */
 function getLocationRequest(state: LocalWeatherState) {
-  if (state.status === 'prompt') {
-    return state.requestLocation;
-  }
-
-  if (state.status === 'error' && state.reason === 'transient') {
+  if (state.status === 'error') {
     return state.requestLocation;
   }
 
@@ -156,16 +148,12 @@ export default function App() {
   const chimePlaybackRef = useRef<ChimePlayback | null>(null);
   const lastCheckedMinute = useRef<number>(new Date().getMinutes());
   const lastCheckedSecond = useRef<number>(new Date().getSeconds());
-  // A visitor who has already chosen a background keeps that choice. The
-  // permission answer therefore picks the background once, and only for a
-  // visitor who has never chosen one.
+  // A visitor who has already chosen a background keeps that choice.
   const backgroundChosenRef = useRef<boolean>(savedBackgroundMode !== null);
 
-  // The weather feed stays enabled for the whole page session. Both of its
-  // consumers need the permission answer: the dynamic background needs the
-  // season, and the panel needs the prompt state so it can offer the enable
-  // button while the background is still `None`. Disabling the feed would
-  // discard that answer along with the season the background is drawing.
+  // The weather feed stays enabled for the whole page session. It asks for
+  // the visitor's location on load and uses Oslo when the browser cannot
+  // provide one.
   const weatherState = useLocalWeather({ enabled: true });
   const requestLocation = getLocationRequest(weatherState);
   // `null` while the feed is not reporting an error, so the recovery effect
@@ -303,42 +291,27 @@ export default function App() {
     [],
   );
 
-  // The permission answer chooses the background for a visitor who has never
-  // chosen one: `Dynamic` when the browser has already granted a location,
-  // and `None` when it prompts, refuses, or cannot answer. The choice is not
-  // saved, so a later visit asks the browser again rather than freezing the
-  // answer the first visit happened to get.
+  // The first successful forecast enables the dynamic background for a
+  // visitor who has not chosen a background. This includes the Oslo fallback.
   useEffect(() => {
     if (backgroundChosenRef.current) return;
-
-    const permission = weatherState.permission;
-
-    if (permission === null) return;
+    if (weatherState.status !== 'success') return;
 
     backgroundChosenRef.current = true;
-    setBackgroundMode(resolveInitialBackground(null, permission));
-  }, [weatherState.permission]);
+    setBackgroundMode('dynamic');
+  }, [weatherState.status]);
 
   // A dynamic background with no reachable location has nothing to draw, so
   // the live selection returns to `None`.
   //
-  // Only a refusal is saved. The visitor told the browser no, so a saved
-  // `Dynamic` no longer describes what the visitor wants and writing `none`
-  // records the decision they already made. The other two failures are not
-  // the visitor's doing: a browser without geolocation decided nothing, and
-  // neither did a position that could not be fixed or a forecast that did
-  // not arrive. A saved `Dynamic` survives all of those and is honoured
-  // again on the next visit.
+  // A forecast failure leaves a dynamic background with nothing to draw, but
+  // the saved choice remains available for a later visit.
   useEffect(() => {
     if (backgroundMode !== 'dynamic') return;
     if (weatherFailureReason === null) return;
 
     setBackgroundMode('none');
-
-    if (weatherFailureReason === 'refused') {
-      writeBackgroundPreference(storage, 'none');
-    }
-  }, [backgroundMode, storage, weatherFailureReason]);
+  }, [backgroundMode, weatherFailureReason]);
 
   const initAudio = () => {
     if (!audioCtxRef.current) {
@@ -486,10 +459,6 @@ export default function App() {
               title="Clock"
               value={clockMode}
             />
-            <WeatherPanel
-              showSeasonalAttribution={activeSeason !== null}
-              state={weatherState}
-            />
             <OptionSelector
               icon={
                 chimeMode === 'off' ? (
@@ -559,7 +528,11 @@ export default function App() {
               value={backgroundMode}
             />
           </div>
-          <div className="pt-8 pb-4 text-center text-xs text-slate-400 dark:text-slate-500">
+          <WeatherPanel
+            showSeasonalAttribution={activeSeason !== null}
+            state={weatherState}
+          />
+          <div className="pb-4 pt-2 text-center text-xs text-slate-400 dark:text-slate-500">
             <p>
               Built from{' '}
               {commitSha ? (

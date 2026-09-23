@@ -66,8 +66,6 @@ const FORECAST_HOST = 'api.met.no';
 
 const UNAVAILABLE_MESSAGE = 'Local weather is unavailable.';
 
-const ENABLE_LABEL = 'Enable Local Weather';
-
 const systemTime = new Date(2026, 7, 16, 12, 0, 0);
 
 function futureDayIso(daysAhead: number) {
@@ -634,105 +632,96 @@ describe('App', () => {
       );
       expect(
         screen.getByText(
-          /^Currently, .+°C, .+ at Current Location 📍\.$/,
+          /^Current Location 📍 · .+°C · .+\.$/,
         ),
       ).toBeInTheDocument();
       expect(
-        screen.getByText('Seasonal background by Three UI.'),
+        screen.getByRole('link', { name: 'Three UI' }),
       ).toBeInTheDocument();
       expect(
         screen
-          .getByRole('radiogroup', { name: 'Clock' })
+          .getByRole('radiogroup', { name: 'Background' })
           .compareDocumentPosition(screen.getByLabelText('Local weather')) &
           Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     });
 
-    it('defaults to None and offers the enable button when prompting', async () => {
-      const getCurrentPosition = stubGeolocation({ permission: 'prompt' });
-      render(<App />);
-
-      await waitForText(ENABLE_LABEL);
-
-      expect(optionRadio('Background', 'None')).toBeChecked();
-      expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
-      expect(getCurrentPosition).not.toHaveBeenCalled();
-      expect(
-        screen.queryByText('Seasonal background by Three UI.'),
-      ).not.toBeInTheDocument();
-    });
-
-    it('defaults to None when the permissions API is missing', async () => {
-      render(<App />);
-
-      await waitForText(ENABLE_LABEL);
-
-      expect(optionRadio('Background', 'None')).toBeChecked();
-      expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
-    });
-
-    it('requests the location when Dynamic is chosen', async () => {
+    it('requests location automatically when the browser prompts', async () => {
       const getCurrentPosition = stubGeolocation({
         permission: 'prompt',
         position: { latitude: 1.3521, longitude: 103.8198 },
       });
       render(<App />);
-      await waitForText(ENABLE_LABEL);
 
-      fireEvent.click(optionRadio('Background', 'Dynamic'));
-      await waitForTestId('seasonal-scene');
+      await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
       expect(getCurrentPosition).toHaveBeenCalledOnce();
-      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
-        'dynamic',
-      );
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
       expect(screen.getByTestId('seasonal-scene')).toHaveAttribute(
         'data-season',
         'summer',
       );
     });
 
-    it('returns to None and saves it when the location is refused', async () => {
-      stubGeolocation({ permission: 'prompt', position: 'denied' });
+    it('requests location automatically when the permissions API is missing', async () => {
+      const getCurrentPosition = stubGeolocation({
+        position: { latitude: 59.9139, longitude: 10.7522 },
+      });
       render(<App />);
-      await waitForText(ENABLE_LABEL);
 
-      fireEvent.click(optionRadio('Background', 'Dynamic'));
-      await waitForText(UNAVAILABLE_MESSAGE);
+      await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
-      expect(optionRadio('Background', 'None')).toBeChecked();
-      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe('none');
-      expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
+      expect(getCurrentPosition).toHaveBeenCalledOnce();
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
     });
 
-    it('returns to None and keeps a saved Dynamic when the browser cannot locate', async () => {
+    it('uses Oslo weather when location permission is denied', async () => {
+      const getCurrentPosition = stubGeolocation({ permission: 'denied' });
+      render(<App />);
+
+      await waitForText(/^Oslo, Norway · .+°C · .+\.$/);
+      await waitForTestId('seasonal-scene');
+
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
+      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBeNull();
+    });
+
+    it('uses Oslo weather when the location prompt is denied', async () => {
+      const getCurrentPosition = stubGeolocation({
+        permission: 'prompt',
+        position: 'denied',
+      });
+      render(<App />);
+
+      await waitForText(/^Oslo, Norway · .+°C · .+\.$/);
+
+      expect(getCurrentPosition).toHaveBeenCalledOnce();
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
+    });
+
+    it('uses Oslo weather when geolocation is unsupported', async () => {
       window.localStorage.setItem(BACKGROUND_STORAGE_KEY, 'dynamic');
       stubGeolocation({ permission: 'granted', supported: false });
       render(<App />);
 
-      await waitForText(UNAVAILABLE_MESSAGE);
+      await waitForText(/^Oslo, Norway · .+°C · .+\.$/);
 
-      expect(optionRadio('Background', 'None')).toBeChecked();
-      expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
-      // An environment without geolocation decided nothing on the visitor's
-      // behalf, so the wish it cannot grant is not erased.
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
+      expect(screen.getByTestId('seasonal-scene')).toBeInTheDocument();
       expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
         'dynamic',
       );
     });
 
-    it('keeps a chosen Dynamic when the browser cannot locate', async () => {
-      stubGeolocation({ permission: 'prompt', supported: false });
+    it('uses Oslo weather when the device cannot fix a position', async () => {
+      stubGeolocation({ permission: 'granted', position: 'unavailable' });
       render(<App />);
-      await waitForText(ENABLE_LABEL);
 
-      fireEvent.click(optionRadio('Background', 'Dynamic'));
-      await waitForText(UNAVAILABLE_MESSAGE);
+      await waitForText(/^Oslo, Norway · .+°C · .+\.$/);
 
-      expect(optionRadio('Background', 'None')).toBeChecked();
-      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
-        'dynamic',
-      );
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
+      expect(screen.getByTestId('seasonal-scene')).toBeInTheDocument();
     });
 
     it('keeps a saved Dynamic when a forecast request fails', async () => {
@@ -748,19 +737,6 @@ describe('App', () => {
 
       expect(optionRadio('Background', 'None')).toBeChecked();
       expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
-      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
-        'dynamic',
-      );
-    });
-
-    it('keeps a saved Dynamic when the device cannot fix a position', async () => {
-      window.localStorage.setItem(BACKGROUND_STORAGE_KEY, 'dynamic');
-      stubGeolocation({ permission: 'granted', position: 'unavailable' });
-      render(<App />);
-
-      await waitForText(UNAVAILABLE_MESSAGE);
-
-      expect(optionRadio('Background', 'None')).toBeChecked();
       expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
         'dynamic',
       );
@@ -790,10 +766,13 @@ describe('App', () => {
       );
     });
 
-    it('saves a manual season without requesting the location', async () => {
-      const getCurrentPosition = stubGeolocation({ permission: 'prompt' });
+    it('saves a manual season after the automatic location request', async () => {
+      const getCurrentPosition = stubGeolocation({
+        permission: 'prompt',
+        position: { latitude: 59.9139, longitude: 10.7522 },
+      });
       render(<App />);
-      await waitForText(ENABLE_LABEL);
+      await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
       fireEvent.click(optionRadio('Background', 'Winter'));
       await waitForTestId('seasonal-scene');
@@ -805,7 +784,7 @@ describe('App', () => {
         'data-season',
         'winter',
       );
-      expect(getCurrentPosition).not.toHaveBeenCalled();
+      expect(getCurrentPosition).toHaveBeenCalledOnce();
     });
 
     it('restores the saved background and ignores the permission default', async () => {
@@ -826,9 +805,12 @@ describe('App', () => {
     });
 
     it('keeps the interface visible when weather or background is clicked', async () => {
-      stubGeolocation({ permission: 'prompt' });
+      stubGeolocation({
+        permission: 'granted',
+        position: { latitude: 59.9139, longitude: 10.7522 },
+      });
       render(<App />);
-      await waitForText(ENABLE_LABEL);
+      await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
       fireEvent.click(screen.getByLabelText('Local weather'));
       fireEvent.click(optionRadio('Background', 'Summer'));
@@ -860,9 +842,12 @@ describe('App', () => {
     });
 
     it('hides the weather panel with the rest of the interface', async () => {
-      stubGeolocation({ permission: 'prompt' });
+      stubGeolocation({
+        permission: 'granted',
+        position: { latitude: 59.9139, longitude: 10.7522 },
+      });
       render(<App />);
-      await waitForText(ENABLE_LABEL);
+      await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
       fireEvent.click(screen.getByTitle('Click to toggle full-screen clock.'));
       act(() => {
@@ -896,14 +881,17 @@ describe('App', () => {
       const restore = refuseStorage();
 
       try {
-        stubGeolocation({ permission: 'prompt' });
+        stubGeolocation({
+          permission: 'prompt',
+          position: { latitude: 59.9139, longitude: 10.7522 },
+        });
         render(<App />);
 
-        await waitForText(ENABLE_LABEL);
+        await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
         expect(screen.getByTestId('digital-clock')).toBeInTheDocument();
         expect(optionRadio('Clock', 'Digital')).toBeChecked();
-        expect(optionRadio('Background', 'None')).toBeChecked();
+        expect(optionRadio('Background', 'Dynamic')).toBeChecked();
       } finally {
         restore();
       }
@@ -913,9 +901,12 @@ describe('App', () => {
       const restore = refuseStorage();
 
       try {
-        stubGeolocation({ permission: 'prompt' });
+        stubGeolocation({
+          permission: 'prompt',
+          position: { latitude: 59.9139, longitude: 10.7522 },
+        });
         render(<App />);
-        await waitForText(ENABLE_LABEL);
+        await waitForText(/^Current Location 📍 · .+°C · .+\.$/);
 
         expect(() =>
           fireEvent.click(optionRadio('Background', 'Winter')),

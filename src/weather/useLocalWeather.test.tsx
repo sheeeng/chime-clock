@@ -138,7 +138,7 @@ describe('useLocalWeather', () => {
     }
 
     expect(result.current.season).toBe('summer');
-    expect(result.current.weather.summary).toContain('Current Location 📍');
+    expect(result.current.weather.current.location).toBe('Current Location 📍');
   });
 
   it('sends two decimal coordinates and no referrer', async () => {
@@ -200,8 +200,8 @@ describe('useLocalWeather', () => {
     );
   });
 
-  it('does not call geolocation until requestLocation is invoked', async () => {
-    const getCurrentPosition = vi.fn();
+  it('requests location on load when the browser must prompt', async () => {
+    const getCurrentPosition = positionAt(OSLO);
 
     stubNavigator({
       permissions: {
@@ -209,20 +209,13 @@ describe('useLocalWeather', () => {
       },
       geolocation: { getCurrentPosition },
     });
+    resolveForecast();
 
     const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-    await waitFor(() => expect(result.current.status).toBe('prompt'));
+    await waitFor(() => expect(result.current.status).toBe('success'));
 
-    expect(getCurrentPosition).not.toHaveBeenCalled();
-
-    if (result.current.status !== 'prompt') {
-      throw new Error('Expected a prompt state.');
-    }
-
-    result.current.requestLocation();
-
-    await waitFor(() => expect(getCurrentPosition).toHaveBeenCalledOnce());
+    expect(getCurrentPosition).toHaveBeenCalledOnce();
   });
 
   it('does not query location or fetch when disabled', async () => {
@@ -245,102 +238,86 @@ describe('useLocalWeather', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  describe('refused permission', () => {
-    it('reports a refused permission as final and offers no retry', async () => {
+  describe('Oslo fallback', () => {
+    it('loads Oslo weather when permission was already denied', async () => {
       stubNavigator({
         permissions: {
           query: vi.fn().mockResolvedValue(createPermissionStatus('denied')),
         },
         geolocation: { getCurrentPosition: vi.fn() },
       });
+      resolveForecast();
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await waitFor(() => expect(result.current.status).toBe('error'));
+      await waitFor(() => expect(result.current.status).toBe('success'));
 
-      if (result.current.status !== 'error') {
-        throw new Error('Expected an error state.');
+      if (result.current.status !== 'success') {
+        throw new Error('Expected a success state.');
       }
 
       expect(result.current.permission).toBe('denied');
-      expect(result.current.reason).toBe('refused');
-      expect('requestLocation' in result.current).toBe(false);
-      expect(result.current.message).toBe('Local weather is unavailable.');
-      expect(fetch).not.toHaveBeenCalled();
+      expect(result.current.weather.current.location).toBe('Oslo, Norway');
+      expect(fetch).toHaveBeenCalledWith(
+        `${FORECAST_URL}?lat=59.91&lon=10.75`,
+        expect.objectContaining({ referrerPolicy: 'no-referrer' }),
+      );
     });
 
-    it('reports a refused prompt as final and offers no retry', async () => {
+    it('loads Oslo weather when the user denies the location prompt', async () => {
       stubNavigator({
         permissions: {
           query: vi.fn().mockResolvedValue(createPermissionStatus('prompt')),
         },
         geolocation: { getCurrentPosition: positionError(1) },
       });
+      resolveForecast();
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await waitFor(() => expect(result.current.status).toBe('prompt'));
+      await waitFor(() => expect(result.current.status).toBe('success'));
 
-      const prompted = result.current;
-
-      if (prompted.status !== 'prompt') {
-        throw new Error('Expected a prompt state.');
+      if (result.current.status !== 'success') {
+        throw new Error('Expected a success state.');
       }
 
-      act(() => prompted.requestLocation());
-
-      await waitFor(() => expect(result.current.status).toBe('error'));
-
-      const failed = result.current;
-
-      if (failed.status !== 'error') {
-        throw new Error('Expected an error state.');
-      }
-
-      expect(failed.permission).toBe('denied');
-      expect(failed.reason).toBe('refused');
-      expect('requestLocation' in failed).toBe(false);
+      expect(result.current.permission).toBe('denied');
+      expect(result.current.weather.current.location).toBe('Oslo, Norway');
     });
   });
 
   describe('unsupported environment', () => {
-    it('reports a browser without geolocation as unsupported, not refused', async () => {
+    it('loads Oslo weather when geolocation is unsupported', async () => {
       stubNavigator({
         permissions: grantedPermissions(),
         geolocation: undefined,
       });
+      resolveForecast();
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await waitFor(() => expect(result.current.status).toBe('error'));
+      await waitFor(() => expect(result.current.status).toBe('success'));
 
-      if (result.current.status !== 'error') {
-        throw new Error('Expected an error state.');
+      if (result.current.status !== 'success') {
+        throw new Error('Expected a success state.');
       }
 
       expect(result.current.permission).toBe('unsupported');
-      // The visitor refused nothing, so nothing downstream may treat this as
-      // a decision the visitor made.
-      expect(result.current.reason).toBe('unsupported');
-      expect(result.current.message).toBe('Local weather is unavailable.');
-      expect(fetch).not.toHaveBeenCalled();
+      expect(result.current.weather.current.location).toBe('Oslo, Norway');
     });
 
-    it('offers no retry, because there is nothing left to ask', async () => {
+    it('does not call the unavailable geolocation interface', async () => {
       stubNavigator({
         permissions: grantedPermissions(),
         geolocation: undefined,
       });
+      resolveForecast();
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await waitFor(() => expect(result.current.status).toBe('error'));
+      await waitFor(() => expect(result.current.status).toBe('success'));
 
-      if (result.current.status !== 'error') {
-        throw new Error('Expected an error state.');
-      }
-
-      expect('requestLocation' in result.current).toBe(false);
+      expect(fetch).toHaveBeenCalledOnce();
     });
   });
 
@@ -443,12 +420,6 @@ describe('useLocalWeather', () => {
   });
 
   describe('callbacks that outlive their effect', () => {
-    function promptPermissions() {
-      return {
-        query: vi.fn().mockResolvedValue(createPermissionStatus('prompt')),
-      };
-    }
-
     function renderToggleable() {
       return renderHook(
         ({ enabled }: { enabled: boolean }) => useLocalWeather({ enabled }),
@@ -456,54 +427,33 @@ describe('useLocalWeather', () => {
       );
     }
 
-    async function capturePromptRequest(result: {
+    async function captureRetry(result: {
       current: ReturnType<typeof useLocalWeather>;
     }) {
-      await waitFor(() => expect(result.current.status).toBe('prompt'));
+      await waitFor(() => expect(result.current.status).toBe('error'));
 
-      if (result.current.status !== 'prompt') {
-        throw new Error('Expected a prompt state.');
+      if (
+        result.current.status !== 'error' ||
+        result.current.reason !== 'transient'
+      ) {
+        throw new Error('Expected a transient error state.');
       }
 
       return result.current.requestLocation;
     }
 
-    it('does not strand the feed in loading after it is disabled', async () => {
-      const getCurrentPosition = positionAt(OSLO);
-
-      stubNavigator({
-        permissions: promptPermissions(),
-        geolocation: { getCurrentPosition },
-      });
-      resolveForecast();
-
-      const { result, rerender } = renderToggleable();
-      const captured = await capturePromptRequest(result);
-
-      rerender({ enabled: false });
-
-      await waitFor(() =>
-        expect(result.current.status).toBe('checking-permission'),
-      );
-
-      act(() => captured());
-      await drainPendingWork();
-
-      expect(getCurrentPosition).not.toHaveBeenCalled();
-      expect(result.current.status).toBe('checking-permission');
-    });
-
     it('does not ask for a location after the hook unmounts', async () => {
-      const getCurrentPosition = positionAt(OSLO);
+      const getCurrentPosition = positionError(2);
 
       stubNavigator({
-        permissions: promptPermissions(),
+        permissions: grantedPermissions(),
         geolocation: { getCurrentPosition },
       });
-      resolveForecast();
+      vi.mocked(fetch).mockRejectedValue(new Error('Forecast unavailable.'));
 
       const { result, unmount } = renderToggleable();
-      const captured = await capturePromptRequest(result);
+      const captured = await captureRetry(result);
+      getCurrentPosition.mockClear();
 
       unmount();
 
@@ -511,34 +461,36 @@ describe('useLocalWeather', () => {
       await drainPendingWork();
 
       expect(getCurrentPosition).not.toHaveBeenCalled();
-      expect(result.current.status).toBe('prompt');
+      expect(result.current.status).toBe('error');
     });
 
     it('drives the current request after the feed is enabled again', async () => {
-      const getCurrentPosition = positionAt(OSLO);
+      const getCurrentPosition = positionError(2);
 
       stubNavigator({
-        permissions: promptPermissions(),
+        permissions: grantedPermissions(),
         geolocation: { getCurrentPosition },
       });
-      resolveForecast();
+      vi.mocked(fetch).mockRejectedValue(new Error('Forecast unavailable.'));
 
       const { result, rerender } = renderToggleable();
-      const captured = await capturePromptRequest(result);
+      const captured = await captureRetry(result);
 
       rerender({ enabled: false });
       await waitFor(() =>
         expect(result.current.status).toBe('checking-permission'),
       );
 
+      getCurrentPosition.mockImplementation(positionAt(OSLO));
+      resolveForecast();
       rerender({ enabled: true });
-      await waitFor(() => expect(result.current.status).toBe('prompt'));
-
-      act(() => captured());
-
       await waitFor(() => expect(result.current.status).toBe('success'));
 
-      expect(getCurrentPosition).toHaveBeenCalledOnce();
+      act(() => captured());
+      await drainPendingWork();
+
+      expect(getCurrentPosition).toHaveBeenCalledTimes(3);
+      expect(result.current.status).toBe('success');
     });
 
     it('withdraws a retry handed out before the feed was disabled', async () => {
@@ -739,8 +691,8 @@ describe('useLocalWeather', () => {
       act(() => handlePermissionChange());
 
       await waitForCondition(
-        'the refusal to be reported',
-        () => result.current.status === 'error',
+        'the Oslo fallback request to start',
+        () => forecastRequests.length === 2,
       );
 
       expect(forecastRequests[0].signal.aborted).toBe(true);
@@ -752,11 +704,8 @@ describe('useLocalWeather', () => {
       // its answer over the one the permission change produced.
       await drainPendingWork();
 
-      if (result.current.status !== 'error') {
-        throw new Error('Expected an error state.');
-      }
-
-      expect(result.current.reason).toBe('refused');
+      expect(result.current.status).toBe('loading');
+      expect(result.current.permission).toBe('denied');
     });
 
     it('aborts the forecast and clears its timer when unmounted', async () => {

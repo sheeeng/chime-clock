@@ -10,42 +10,30 @@ type UseLocalWeatherOptions = {
   enabled: boolean;
 };
 
-type WeatherErrorBase = {
-  status: 'error';
-  permission: PermissionState | 'unsupported';
-  message: string;
-};
-
 /**
- * Why the feed has nothing to show. Three outcomes look alike on screen and
- * mean different things to anything that stores a preference.
- *
- * - `refused`: the visitor told the browser no. The browser will answer the
- *   same way until the visitor changes it, and the answer is the visitor's
- *   own decision, so a stored wish for local weather no longer describes
- *   what the visitor wants.
- * - `unsupported`: the environment has no geolocation at all. There is
- *   nothing to ask and nothing to retry, and the visitor decided nothing, so
- *   a stored wish still describes what the visitor wants and must survive.
- * - `transient`: the position or the forecast did not arrive this time and
- *   may arrive the next. `requestLocation` asks again.
- *
- * A retry exists exactly for `transient`, and the type says so rather than
- * leaving an optional callback that a caller has to test for.
+ * The feed reports a transient error only when neither local nor Oslo weather
+ * can load. The retry starts location detection again.
  */
 export type LocalWeatherState =
   | { status: 'checking-permission'; permission: null }
-  | { status: 'prompt'; permission: 'prompt'; requestLocation: () => void }
-  | { status: 'loading'; permission: 'granted' }
+  | {
+      status: 'loading';
+      permission: PermissionState | 'unsupported';
+    }
   | {
       status: 'success';
-      permission: 'granted';
+      permission: PermissionState | 'unsupported';
       latitude: number;
       weather: WeatherReading;
       season: SeasonId;
     }
-  | (WeatherErrorBase & { reason: 'refused' | 'unsupported' })
-  | (WeatherErrorBase & { reason: 'transient'; requestLocation: () => void });
+  | {
+      status: 'error';
+      permission: PermissionState | 'unsupported';
+      message: string;
+      reason: 'transient';
+      requestLocation: () => void;
+    };
 
 const UNAVAILABLE_MESSAGE = 'Local weather is unavailable.';
 
@@ -71,6 +59,12 @@ const GEOLOCATION_MAXIMUM_AGE_MS = 10 * 60 * 1000;
 const FORECAST_TIMEOUT_MS = 10_000;
 
 const PERMISSION_DENIED = 1;
+
+const OSLO = {
+  latitude: 59.9139,
+  longitude: 10.7522,
+  label: 'Oslo, Norway',
+} as const;
 
 export function useLocalWeather(
   options: UseLocalWeatherOptions,
@@ -129,24 +123,6 @@ export function useLocalWeather(
       activeRequest = null;
     }
 
-    function failRefused() {
-      setState({
-        status: 'error',
-        permission: 'denied',
-        message: UNAVAILABLE_MESSAGE,
-        reason: 'refused',
-      });
-    }
-
-    function failUnsupported() {
-      setState({
-        status: 'error',
-        permission: 'unsupported',
-        message: UNAVAILABLE_MESSAGE,
-        reason: 'unsupported',
-      });
-    }
-
     function failTransiently(permission: PermissionState | 'unsupported') {
       setState({
         status: 'error',
@@ -161,6 +137,8 @@ export function useLocalWeather(
       latitude: number,
       longitude: number,
       requestSerial: number,
+      permission: PermissionState | 'unsupported',
+      location: string,
     ) {
       const endpoint = new URL(FORECAST_ENDPOINT);
       endpoint.searchParams.set('lat', latitude.toFixed(COORDINATE_DECIMALS));
@@ -197,9 +175,9 @@ export function useLocalWeather(
 
         setState({
           status: 'success',
-          permission: 'granted',
+          permission,
           latitude,
-          weather: parseWeather(forecast),
+          weather: parseWeather(forecast, new Date(), location),
           season: getSeasonFromForecast(forecast, latitude),
         });
       } catch {
@@ -209,7 +187,7 @@ export function useLocalWeather(
 
         // A forecast that timed out, was refused, or arrived malformed may
         // arrive intact on the next attempt, so the visitor keeps a way back.
-        failTransiently('granted');
+        failTransiently(permission);
       } finally {
         clearTimeout(timeoutId);
 
@@ -219,20 +197,31 @@ export function useLocalWeather(
       }
     }
 
+    function loadOsloForecast(
+      requestSerial: number,
+      permission: PermissionState | 'unsupported',
+    ) {
+      setState({ status: 'loading', permission });
+      void loadForecast(
+        roundCoordinate(OSLO.latitude),
+        roundCoordinate(OSLO.longitude),
+        requestSerial,
+        permission,
+        OSLO.label,
+      );
+    }
+
     function startLocationRequest() {
       serial += 1;
       const requestSerial = serial;
       cancelActiveRequest();
 
       if (!navigator.geolocation) {
-        // The environment cannot locate anything. Nothing was refused and
-        // nothing can be retried, so callers keep whatever the visitor
-        // asked for and simply have nothing to draw.
-        failUnsupported();
+        loadOsloForecast(requestSerial, 'unsupported');
         return;
       }
 
-      setState({ status: 'loading', permission: 'granted' });
+      setState({ status: 'loading', permission: lastPermission });
 
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -242,19 +231,20 @@ export function useLocalWeather(
             roundCoordinate(position.coords.latitude),
             roundCoordinate(position.coords.longitude),
             requestSerial,
+            'granted',
+            'Current Location 📍',
           );
         },
         (error) => {
           if (!isCurrent(requestSerial)) return;
 
           if (error.code === PERMISSION_DENIED) {
-            failRefused();
+            lastPermission = 'denied';
+            loadOsloForecast(requestSerial, 'denied');
             return;
           }
 
-          // The device could not fix a position in time. Asking again is
-          // worth doing, so the caller is handed the way to do it.
-          failTransiently(lastPermission);
+          loadOsloForecast(requestSerial, lastPermission);
         },
         {
           timeout: GEOLOCATION_TIMEOUT_MS,
@@ -279,11 +269,11 @@ export function useLocalWeather(
       cancelActiveRequest();
 
       if (permissionState === 'denied') {
-        failRefused();
+        loadOsloForecast(serial, 'denied');
         return;
       }
 
-      setState({ status: 'prompt', permission: 'prompt', requestLocation });
+      startLocationRequest();
     }
 
     function cleanUp() {
@@ -307,7 +297,7 @@ export function useLocalWeather(
     setState({ status: 'checking-permission', permission: null });
 
     if (!navigator.permissions?.query) {
-      setState({ status: 'prompt', permission: 'prompt', requestLocation });
+      startLocationRequest();
 
       return cleanUp;
     }
@@ -325,7 +315,7 @@ export function useLocalWeather(
       .catch(() => {
         if (cancelled) return;
 
-        setState({ status: 'prompt', permission: 'prompt', requestLocation });
+        startLocationRequest();
       });
 
     return cleanUp;

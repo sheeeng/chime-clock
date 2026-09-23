@@ -27,37 +27,6 @@ function createWeather(
       temperature: '14.4°C',
       condition: 'few clouds',
     },
-    summary: [
-      'Current Location 📍',
-      '14.4°C',
-      'Few Clouds 🌤️',
-      'Wind 3.2 m/s from SSW',
-    ],
-    details: [
-      { label: 'Pressure', value: '1026.5 hPa' },
-      { label: 'Cloud cover', value: '38.8%' },
-      { label: 'Humidity', value: '47.5%' },
-    ],
-    periods: [
-      {
-        label: 'Next Hour',
-        condition: 'Few Clouds',
-        emoji: '🌤️',
-        precipitation: '0 mm',
-      },
-      {
-        label: 'Next 6 Hours',
-        condition: 'Rain',
-        emoji: '🌧️',
-        precipitation: '2.4 mm',
-      },
-      {
-        label: 'Next 12 Hours',
-        condition: 'Partly Cloudy',
-        emoji: '⛅',
-        precipitation: null,
-      },
-    ],
     ...overrides,
   };
 }
@@ -88,23 +57,6 @@ describe('WeatherPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('requests location when the enable button is pressed', () => {
-    const requestLocation = vi.fn();
-
-    render(
-      <WeatherPanel
-        showSeasonalAttribution={false}
-        state={{ status: 'prompt', permission: 'prompt', requestLocation }}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole('button', { name: 'Enable Local Weather' }),
-    );
-
-    expect(requestLocation).toHaveBeenCalledOnce();
-  });
-
   it('shows the unavailable message on error', () => {
     render(
       <WeatherPanel
@@ -113,7 +65,8 @@ describe('WeatherPanel', () => {
           status: 'error',
           permission: 'denied',
           message: 'Local weather is unavailable.',
-          reason: 'refused',
+          reason: 'transient',
+          requestLocation: vi.fn(),
         }}
       />,
     );
@@ -136,7 +89,7 @@ describe('WeatherPanel', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the forecast time and attribution', () => {
+  it('renders compact current conditions and attribution', () => {
     render(
       <WeatherPanel
         showSeasonalAttribution
@@ -145,22 +98,16 @@ describe('WeatherPanel', () => {
     );
 
     expect(
-      getByCompleteText('Forecast for September 22, 2026, at 12:00 UTC.'),
+      getByCompleteText('Current Location 📍 · 14.4°C · Few clouds.'),
     ).toBeInTheDocument();
     expect(
-      getByCompleteText('Obtained from MET Norway.'),
+      getByCompleteText(
+        'Forecast for September 22, 2026, at 12:00 UTC · MET Norway · Seasonal background by Three UI.',
+      ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'MET Norway' }),
     ).toHaveAttribute('href', 'https://api.met.no/');
-    expect(
-      getByCompleteText(
-        'Currently, 14.4°C, few clouds at Current Location 📍.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('Seasonal background by Three UI.'),
-    ).toBeInTheDocument();
     expect(
       screen.queryByRole('list', { name: 'Current conditions' }),
     ).not.toBeInTheDocument();
@@ -178,7 +125,7 @@ describe('WeatherPanel', () => {
     );
 
     expect(
-      screen.queryByText('Seasonal background by Three UI.'),
+      screen.queryByText(/Seasonal background by Three UI/),
     ).not.toBeInTheDocument();
   });
 
@@ -195,7 +142,7 @@ describe('WeatherPanel', () => {
     );
 
     fireEvent.click(
-      getByCompleteText('Forecast for September 22, 2026, at 12:00 UTC.'),
+      getByCompleteText('Current Location 📍 · 14.4°C · Few clouds.'),
     );
 
     expect(onOuterClick).not.toHaveBeenCalled();

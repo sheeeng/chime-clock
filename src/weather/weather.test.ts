@@ -142,37 +142,6 @@ describe('parseWeather', () => {
         temperature: '14.4°C',
         condition: 'few clouds',
       },
-      summary: [
-        'Current Location 📍',
-        '14.4°C',
-        'Few Clouds 🌤️',
-        'Wind 3.2 m/s from SSW',
-      ],
-      details: [
-        { label: 'Pressure', value: '1026.5 hPa' },
-        { label: 'Cloud cover', value: '38.8%' },
-        { label: 'Humidity', value: '47.5%' },
-      ],
-      periods: [
-        {
-          label: 'Next Hour',
-          condition: 'Few Clouds',
-          emoji: '🌤️',
-          precipitation: '0 mm',
-        },
-        {
-          label: 'Next 6 Hours',
-          condition: 'Rain',
-          emoji: '🌧️',
-          precipitation: '2.4 mm',
-        },
-        {
-          label: 'Next 12 Hours',
-          condition: 'Partly Cloudy',
-          emoji: '⛅',
-          precipitation: null,
-        },
-      ],
     });
   });
 

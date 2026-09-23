@@ -12,9 +12,8 @@ import { drainPendingWork, waitForCondition } from './test/waiting';
  * only case that could have imported it.
  *
  * The negative here is wider than a missing import. Arrowing past `Dynamic`
- * must not ask the browser for a location or write it over a saved
- * preference either, so both are asserted alongside the import before the
- * one commit the case makes.
+ * must not write it over a saved preference or load the scene. The automatic
+ * weather request is independent of keyboard navigation.
  */
 const seasonalScene = vi.hoisted(() => ({ imported: vi.fn() }));
 
@@ -67,7 +66,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-it('arrowing past Dynamic does not request a location, save it, or load the seasonal scene', async () => {
+it('arrowing past Dynamic does not save it or load the seasonal scene', async () => {
   const getCurrentPosition = stubGeolocation();
   render(<App />);
 
@@ -93,7 +92,7 @@ it('arrowing past Dynamic does not request a location, save it, or load the seas
   expect(springRadio).toHaveFocus();
   await drainPendingWork();
 
-  expect(getCurrentPosition).not.toHaveBeenCalled();
+  expect(getCurrentPosition).toHaveBeenCalledOnce();
   expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBeNull();
   expect(seasonalScene.imported).not.toHaveBeenCalled();
   expect(screen.getByRole('radio', { name: 'None' })).toBeChecked();
@@ -101,8 +100,8 @@ it('arrowing past Dynamic does not request a location, save it, or load the seas
   fireEvent.click(dynamicRadio);
 
   await waitForCondition(
-    'the location to be requested',
-    () => getCurrentPosition.mock.calls.length > 0,
+    'the location to be requested again',
+    () => getCurrentPosition.mock.calls.length === 2,
   );
 
   expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe('dynamic');

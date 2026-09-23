@@ -8,23 +8,6 @@ export type WeatherReading = {
     temperature: string;
     condition: string;
   };
-  summary: readonly string[];
-  details: readonly { label: string; value: string }[];
-  periods: readonly {
-    label: string;
-    condition: string;
-    emoji: string;
-    precipitation: string | null;
-  }[];
-};
-
-type WeatherSymbol = {
-  summary?: {
-    symbol_code?: string | null;
-  };
-  details?: {
-    precipitation_amount?: number | null;
-  };
 };
 
 type WeatherEntry = {
@@ -46,25 +29,6 @@ const conditionLabels = {
   partlycloudy: ['Partly Cloudy', '⛅'],
 } as const;
 
-const compassDirections = [
-  'N',
-  'NNE',
-  'NE',
-  'ENE',
-  'E',
-  'ESE',
-  'SE',
-  'SSE',
-  'S',
-  'SSW',
-  'SW',
-  'WSW',
-  'W',
-  'WNW',
-  'NW',
-  'NNW',
-] as const;
-
 const numberFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 1,
   useGrouping: false,
@@ -73,68 +37,26 @@ const numberFormatter = new Intl.NumberFormat('en-US', {
 export function parseWeather(
   forecast: unknown,
   now = new Date(),
+  location = 'Current Location 📍',
 ): WeatherReading {
   const timeseries = getTimeseries(forecast);
   const currentEntry = selectNearestEntry(timeseries, now);
   const details = getInstantDetails(currentEntry);
-  const data = getRecord(currentEntry.data);
   const primarySymbol = getPrimarySymbolCode(currentEntry);
   const condition = describeSymbolCode(primarySymbol);
   const airTemperature = requireFiniteNumber(
     details.air_temperature,
     'air_temperature',
   );
-  const pressure = requireFiniteNumber(
-    details.air_pressure_at_sea_level,
-    'air_pressure_at_sea_level',
-  );
-  const cloudCover = requireFiniteNumber(
-    details.cloud_area_fraction,
-    'cloud_area_fraction',
-  );
-  const humidity = requireFiniteNumber(
-    details.relative_humidity,
-    'relative_humidity',
-  );
-  const windSpeed = requireFiniteNumber(details.wind_speed, 'wind_speed');
-  const windDirection = requireFiniteNumber(
-    details.wind_from_direction,
-    'wind_from_direction',
-  );
 
   return {
     forecastTime: compactIso(currentEntry.time),
     forecastTimeLabel: formatForecastTimeLabel(currentEntry.time),
     current: {
-      location: 'Current Location 📍',
+      location,
       temperature: `${formatFiniteNumber(airTemperature)}°C`,
       condition: condition.condition.toLowerCase(),
     },
-    summary: [
-      'Current Location 📍',
-      `${formatFiniteNumber(airTemperature)}°C`,
-      `${condition.condition} ${condition.emoji}`.trim(),
-      `Wind ${formatFiniteNumber(windSpeed)} m/s from ${toCompassDirection(windDirection)}`,
-    ],
-    details: [
-      {
-        label: 'Pressure',
-        value: `${formatFiniteNumber(pressure)} hPa`,
-      },
-      {
-        label: 'Cloud cover',
-        value: `${formatFiniteNumber(cloudCover)}%`,
-      },
-      {
-        label: 'Humidity',
-        value: `${formatFiniteNumber(humidity)}%`,
-      },
-    ],
-    periods: [
-      buildPeriod('Next Hour', data.next_1_hours),
-      buildPeriod('Next 6 Hours', data.next_6_hours),
-      buildPeriod('Next 12 Hours', data.next_12_hours),
-    ],
   };
 }
 
@@ -221,23 +143,6 @@ function getPrimarySymbolCode(entry: WeatherEntry) {
   );
 }
 
-function buildPeriod(label: string, period?: unknown) {
-  const symbolCode = getSymbolCode(period) ?? '';
-  const condition = describeSymbolCode(symbolCode);
-  const precipitation = getRecord(getRecord(period).details)
-    .precipitation_amount;
-
-  return {
-    label,
-    condition: condition.condition,
-    emoji: condition.emoji,
-    precipitation:
-      typeof precipitation === 'number' && Number.isFinite(precipitation)
-        ? `${formatFiniteNumber(precipitation)} mm`
-        : null,
-  };
-}
-
 function describeSymbolCode(symbolCode: string) {
   const normalizedCode = normalizeSymbolCode(symbolCode);
 
@@ -303,13 +208,6 @@ function compactIso(value: string) {
 
 function formatFiniteNumber(value: number) {
   return numberFormatter.format(value);
-}
-
-function toCompassDirection(degrees: number) {
-  const normalizedDegrees = ((degrees % 360) + 360) % 360;
-  const index = Math.round(normalizedDegrees / 22.5) % compassDirections.length;
-
-  return compassDirections[index];
 }
 
 function getFutureDailyMeans(
