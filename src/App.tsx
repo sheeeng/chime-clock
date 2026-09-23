@@ -531,7 +531,7 @@ export default function App() {
             />
           </div>
           <div
-            className={`flex w-full max-w-2xl flex-col items-center gap-1 text-center text-xs ${
+            className={`flex w-full max-w-2xl flex-col items-center gap-[2px] text-center text-xs ${
               hasSeasonalBackground
                 ? 'text-zinc-100 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]'
                 : 'text-slate-400 dark:text-slate-500'

@@ -17,7 +17,7 @@ export function WeatherPanel({
     <section
       aria-label="Local weather"
       onClick={(event: MouseEvent) => event.stopPropagation()}
-      className="flex flex-col items-center gap-1 text-center text-xs"
+      className="flex flex-col items-center gap-[2px] text-center text-xs"
     >
       {renderPanelBody(state, hasSeasonalBackground, showSeasonalAttribution)}
     </section>
@@ -79,7 +79,7 @@ function ForecastContent({
       <p>
         Forecast for{' '}
         <time dateTime={weather.forecastTime}>{weather.forecastTimeLabel}</time>
-        {' · '}
+        {'. Obtained from '}
         <a
           href="https://api.met.no/"
           target="_blank"
@@ -88,22 +88,22 @@ function ForecastContent({
         >
           MET Norway
         </a>
-        {showSeasonalAttribution && (
-          <>
-            {' · '}
-            Seasonal background by{' '}
-            <a
-              href="https://threeui.com/browse"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-[0.15em] text-[#0969da] dark:text-[#58a6ff]"
-            >
-              Three UI
-            </a>
-          </>
-        )}
         .
       </p>
+      {showSeasonalAttribution && (
+        <p>
+          Seasonal background by{' '}
+          <a
+            href="https://threeui.com/browse"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-[0.15em] text-[#0969da] dark:text-[#58a6ff]"
+          >
+            Three UI
+          </a>
+          .
+        </p>
+      )}
     </>
   );
 }
