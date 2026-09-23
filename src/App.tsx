@@ -530,18 +530,18 @@ export default function App() {
               value={backgroundMode}
             />
           </div>
-          <WeatherPanel
-            hasSeasonalBackground={hasSeasonalBackground}
-            showSeasonalAttribution={activeSeason !== null}
-            state={weatherState}
-          />
           <div
-            className={`pb-4 pt-2 text-center text-xs ${
+            className={`flex w-full max-w-2xl flex-col items-center gap-1 text-center text-xs ${
               hasSeasonalBackground
-                ? 'rounded-xl border border-white/15 bg-zinc-950/40 px-3 text-zinc-100 shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                ? 'text-zinc-100 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]'
                 : 'text-slate-400 dark:text-slate-500'
             }`}
           >
+            <WeatherPanel
+              hasSeasonalBackground={hasSeasonalBackground}
+              showSeasonalAttribution={activeSeason !== null}
+              state={weatherState}
+            />
             <p>
               Built from{' '}
               {commitSha ? (
@@ -549,7 +549,11 @@ export default function App() {
                   href={`https://github.com/sheeeng/chime-clock/commit/${commitSha}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300 no-underline transition-colors"
+                  className={`underline underline-offset-2 transition-colors ${
+                    hasSeasonalBackground
+                      ? 'text-blue-300 hover:text-blue-200'
+                      : 'text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300'
+                  }`}
                 >
                   {commitSha}
                 </a>

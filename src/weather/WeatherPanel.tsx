@@ -17,11 +17,7 @@ export function WeatherPanel({
     <section
       aria-label="Local weather"
       onClick={(event: MouseEvent) => event.stopPropagation()}
-      className={`flex w-full max-w-2xl flex-col items-center gap-1 text-center text-xs ${
-        hasSeasonalBackground
-          ? 'rounded-xl border border-white/15 bg-zinc-950/40 px-4 py-3 text-zinc-100 shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
-          : 'text-slate-400 dark:text-slate-500'
-      }`}
+      className="flex flex-col items-center gap-1 text-center text-xs"
     >
       {renderPanelBody(state, hasSeasonalBackground, showSeasonalAttribution)}
     </section>
@@ -88,7 +84,11 @@ function ForecastContent({
           href="https://api.met.no/"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-indigo-500 no-underline transition-colors hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
+          className={`underline underline-offset-2 transition-colors ${
+            hasSeasonalBackground
+              ? 'text-blue-300 hover:text-blue-200'
+              : 'text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300'
+          }`}
         >
           MET Norway
         </a>
@@ -100,7 +100,11 @@ function ForecastContent({
               href="https://threeui.com/browse"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-indigo-500 no-underline transition-colors hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300"
+              className={`underline underline-offset-2 transition-colors ${
+                hasSeasonalBackground
+                  ? 'text-blue-300 hover:text-blue-200'
+                  : 'text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300'
+              }`}
             >
               Three UI
             </a>
