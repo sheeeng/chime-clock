@@ -31,6 +31,10 @@ function renderSelector(
   return { onChange };
 }
 
+function pressKey(label: string, key: string) {
+  fireEvent.keyDown(screen.getByRole('radio', { name: label }), { key });
+}
+
 describe('OptionSelector', () => {
   it('exposes a group named by its visible title', () => {
     renderSelector({ title: 'Background' });
@@ -142,10 +146,6 @@ describe('OptionSelector', () => {
       render(<Harness />);
 
       return { onChange };
-    }
-
-    function pressKey(label: string, key: string) {
-      fireEvent.keyDown(screen.getByRole('radio', { name: label }), { key });
     }
 
     it('gives the group one tab stop and puts it on the checked option', () => {
@@ -294,6 +294,174 @@ describe('OptionSelector', () => {
       await user.keyboard(' ');
 
       expect(onChange).toHaveBeenLastCalledWith('bell');
+      expect(screen.getByRole('radio', { name: 'Bell' })).toBeChecked();
+    });
+  });
+
+  describe('manual activation', () => {
+    /**
+     * Manual activation is for an option whose commit is expensive or
+     * privacy relevant, so arrowing through the group must never call
+     * `onChange`. Only a click, `Enter`, or `Space` may report a value, so
+     * these cases use a controlled harness the same way the automatic
+     * keyboard cases do, and assert the reported value once a commit is
+     * made rather than after every move.
+     */
+    function renderManual(initial: 'off' | 'bell' | 'cuckoo' = 'off') {
+      const onChange = vi.fn<(value: 'off' | 'bell' | 'cuckoo') => void>();
+
+      function Harness() {
+        const [value, setValue] = useState(initial);
+
+        return (
+          <OptionSelector
+            activation="manual"
+            layoutId="test-active"
+            onChange={(next) => {
+              onChange(next);
+              setValue(next);
+            }}
+            options={options}
+            title="Chime Sound"
+            value={value}
+          />
+        );
+      }
+
+      render(<Harness />);
+
+      return { onChange };
+    }
+
+    it('moves focus without reporting on the arrow keys', () => {
+      const { onChange } = renderManual('off');
+
+      pressKey('Off', 'ArrowRight');
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Bell' })).toHaveFocus();
+      expect(screen.getByRole('radio', { name: 'Off' })).toBeChecked();
+
+      pressKey('Bell', 'ArrowLeft');
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Off' })).toHaveFocus();
+      expect(screen.getByRole('radio', { name: 'Off' })).toBeChecked();
+    });
+
+    it('moves focus without reporting on Home, End, and a wrap', () => {
+      const { onChange } = renderManual('bell');
+
+      pressKey('Bell', 'End');
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Cuckoo' })).toHaveFocus();
+
+      pressKey('Cuckoo', 'ArrowRight');
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Off' })).toHaveFocus();
+
+      pressKey('Off', 'Home');
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Off' })).toHaveFocus();
+      expect(screen.getByRole('radio', { name: 'Bell' })).toBeChecked();
+    });
+
+    it('keeps the tab stop on the committed option while focus moves past it', () => {
+      renderManual('bell');
+
+      pressKey('Bell', 'ArrowRight');
+
+      expect(screen.getByRole('radio', { name: 'Cuckoo' })).toHaveFocus();
+      expect(screen.getByRole('radio', { name: 'Bell' })).toHaveAttribute(
+        'tabindex',
+        '0',
+      );
+      expect(screen.getByRole('radio', { name: 'Cuckoo' })).toHaveAttribute(
+        'tabindex',
+        '-1',
+      );
+    });
+
+    it('commits the focused option with a pointer click', () => {
+      const { onChange } = renderManual('off');
+
+      pressKey('Off', 'ArrowRight');
+      fireEvent.click(screen.getByRole('radio', { name: 'Bell' }));
+
+      expect(onChange).toHaveBeenCalledOnce();
+      expect(onChange).toHaveBeenCalledWith('bell');
+      expect(screen.getByRole('radio', { name: 'Bell' })).toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Bell' })).toHaveAttribute(
+        'tabindex',
+        '0',
+      );
+    });
+
+    it('commits the focused option with Enter or Space', async () => {
+      const user = userEvent.setup();
+      const { onChange } = renderManual('off');
+
+      pressKey('Off', 'End');
+      await user.keyboard('{Enter}');
+
+      expect(onChange).toHaveBeenCalledOnce();
+      expect(onChange).toHaveBeenCalledWith('cuckoo');
+      expect(screen.getByRole('radio', { name: 'Cuckoo' })).toBeChecked();
+    });
+
+    it('follows the tab stop to a value changed from outside the widget', () => {
+      const onChange = vi.fn();
+
+      const { rerender } = render(
+        <OptionSelector
+          activation="manual"
+          layoutId="test-active"
+          onChange={onChange}
+          options={options}
+          title="Chime Sound"
+          value="off"
+        />,
+      );
+
+      pressKey('Off', 'ArrowRight');
+
+      expect(screen.getByRole('radio', { name: 'Bell' })).toHaveFocus();
+      expect(screen.getByRole('radio', { name: 'Off' })).toHaveAttribute(
+        'tabindex',
+        '0',
+      );
+
+      rerender(
+        <OptionSelector
+          activation="manual"
+          layoutId="test-active"
+          onChange={onChange}
+          options={options}
+          title="Chime Sound"
+          value="cuckoo"
+        />,
+      );
+
+      expect(onChange).not.toHaveBeenCalled();
+      expect(screen.getByRole('radio', { name: 'Cuckoo' })).toHaveAttribute(
+        'tabindex',
+        '0',
+      );
+      expect(screen.getByRole('radio', { name: 'Off' })).toHaveAttribute(
+        'tabindex',
+        '-1',
+      );
+    });
+
+    it('leaves unhandled keys to the browser', () => {
+      const { onChange } = renderManual('bell');
+
+      pressKey('Bell', 'a');
+
+      expect(onChange).not.toHaveBeenCalled();
       expect(screen.getByRole('radio', { name: 'Bell' })).toBeChecked();
     });
   });

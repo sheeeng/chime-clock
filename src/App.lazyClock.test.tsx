@@ -11,8 +11,9 @@ import { drainPendingWork, waitForCondition } from './test/waiting';
  * whether `ThreeClock` has been imported can only answer honestly while it is
  * the only case that could have imported it. Sharing a file with other cases
  * would make the answer depend on which of them ran first. Here the negative
- * and the positive are two halves of one case, and the file holds nothing
- * else.
+ * (arrowing past Analog and Cuckoo without committing, then committing
+ * neither) and the positive (an explicit selection) are parts of one case,
+ * and the file holds nothing else.
  */
 const threeClock = vi.hoisted(() => ({ imported: vi.fn() }));
 
@@ -55,7 +56,28 @@ it('loads the Three.js clock only once a model clock is selected', async () => {
   expect(threeClock.imported).not.toHaveBeenCalled();
   expect(screen.getByTestId('digital-clock')).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('radio', { name: 'Analog' }));
+  // The Clock selector holds manual activation, so arrowing from Digital,
+  // through Analog, and on to Cuckoo must not load the module either one
+  // needs.
+  const digitalRadio = screen.getByRole('radio', { name: 'Digital' });
+  digitalRadio.focus();
+  fireEvent.keyDown(digitalRadio, { key: 'ArrowRight' });
+
+  const analogRadio = screen.getByRole('radio', { name: 'Analog' });
+
+  expect(analogRadio).toHaveFocus();
+  fireEvent.keyDown(analogRadio, { key: 'ArrowRight' });
+
+  const cuckooRadio = screen.getByRole('radio', { name: 'Cuckoo' });
+
+  expect(cuckooRadio).toHaveFocus();
+  await drainPendingWork();
+
+  expect(threeClock.imported).not.toHaveBeenCalled();
+  expect(screen.getByTestId('digital-clock')).toBeInTheDocument();
+  expect(screen.getByRole('radio', { name: 'Digital' })).toBeChecked();
+
+  fireEvent.click(analogRadio);
 
   await waitForCondition(
     'the Three.js clock to arrive',

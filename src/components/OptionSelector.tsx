@@ -8,7 +8,19 @@ type Option<T extends OptionValue> = {
   value: T;
 };
 
+/**
+ * `automatic` keeps the radio group pattern: arriving at an option with the
+ * arrow keys, `Home`, or `End` reports it immediately, which is right for a
+ * cheap setting. `manual` is for an option whose commit is expensive or
+ * privacy relevant, such as one that requests a location or imports a large
+ * module. Arrow, `Home`, and `End` only move focus in that mode; `Enter`,
+ * `Space`, and a pointer click are what commit the focused option, exactly as
+ * they already do in `automatic` mode.
+ */
+type OptionActivation = 'automatic' | 'manual';
+
 type OptionSelectorProps<T extends OptionValue> = {
+  activation?: OptionActivation;
   icon?: ReactNode;
   layoutId: string;
   onChange: (value: T) => void;
@@ -18,6 +30,7 @@ type OptionSelectorProps<T extends OptionValue> = {
 };
 
 export function OptionSelector<T extends OptionValue>({
+  activation = 'automatic',
   icon,
   layoutId,
   onChange,
@@ -51,6 +64,15 @@ export function OptionSelector<T extends OptionValue>({
     }
   }
 
+  function focusAt(index: number) {
+    // Manual mode only moves the reader and the caret. Nothing is reported
+    // until the visitor commits, so passing over an option on the way to
+    // another one costs nothing.
+    optionRefs.current[index]?.focus();
+  }
+
+  const moveTo = activation === 'manual' ? focusAt : selectAt;
+
   function handleKeyDown(
     event: KeyboardEvent<HTMLButtonElement>,
     index: number,
@@ -63,20 +85,20 @@ export function OptionSelector<T extends OptionValue>({
       case 'ArrowRight':
       case 'ArrowDown':
         event.preventDefault();
-        selectAt((index + 1) % count);
+        moveTo((index + 1) % count);
         return;
       case 'ArrowLeft':
       case 'ArrowUp':
         event.preventDefault();
-        selectAt((index - 1 + count) % count);
+        moveTo((index - 1 + count) % count);
         return;
       case 'Home':
         event.preventDefault();
-        selectAt(0);
+        moveTo(0);
         return;
       case 'End':
         event.preventDefault();
-        selectAt(count - 1);
+        moveTo(count - 1);
         return;
       default:
         return;

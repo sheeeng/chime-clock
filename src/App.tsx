@@ -484,6 +484,7 @@ export default function App() {
         >
           <div className="flex flex-col items-center p-6 bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/60 dark:border-zinc-800 transition-all duration-300">
             <OptionSelector
+              activation="manual"
               icon={<Clock3 className="h-5 w-5" />}
               layoutId="clock-mode-active"
               onChange={handleClockModeChange}
@@ -551,6 +552,7 @@ export default function App() {
               value={secondsSoundStyle}
             />
             <OptionSelector
+              activation="manual"
               icon={<Trees className="h-5 w-5" />}
               layoutId="background-active"
               onChange={handleBackgroundChange}
