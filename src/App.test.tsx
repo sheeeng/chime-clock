@@ -165,10 +165,7 @@ function stubFailingForecast(failures: number) {
 
 type GeolocationOptions = {
   permission?: PermissionState;
-  position?:
-    | { latitude: number; longitude: number }
-    | 'denied'
-    | 'unavailable';
+  position?: { latitude: number; longitude: number } | 'denied' | 'unavailable';
   supported?: boolean;
 };
 
@@ -616,6 +613,12 @@ describe('App', () => {
   });
 
   describe('background and weather', () => {
+    it('selects Dynamic before the weather request completes', () => {
+      render(<App />);
+
+      expect(optionRadio('Background', 'Dynamic')).toBeChecked();
+    });
+
     it('defaults to Dynamic and draws the computed season when granted', async () => {
       stubGeolocation({
         permission: 'granted',
@@ -631,9 +634,7 @@ describe('App', () => {
         'summer',
       );
       expect(
-        screen.getByText(
-          /^Current Location 📍 · .+°C · .+\.$/,
-        ),
+        screen.getByText(/^Current Location 📍 · .+°C · .+\.$/),
       ).toBeInTheDocument();
       expect(
         screen.getByRole('link', { name: 'Three UI' }),

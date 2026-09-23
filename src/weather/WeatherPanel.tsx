@@ -3,11 +3,13 @@ import type { LocalWeatherState } from './useLocalWeather';
 import type { WeatherReading } from './weather';
 
 type WeatherPanelProps = {
+  hasSeasonalBackground?: boolean;
   showSeasonalAttribution: boolean;
   state: LocalWeatherState;
 };
 
 export function WeatherPanel({
+  hasSeasonalBackground = false,
   showSeasonalAttribution,
   state,
 }: WeatherPanelProps) {
@@ -15,15 +17,20 @@ export function WeatherPanel({
     <section
       aria-label="Local weather"
       onClick={(event: MouseEvent) => event.stopPropagation()}
-      className="flex w-full max-w-2xl flex-col items-center gap-1 text-center text-xs text-slate-400 dark:text-slate-500"
+      className={`flex w-full max-w-2xl flex-col items-center gap-1 text-center text-xs ${
+        hasSeasonalBackground
+          ? 'rounded-xl border border-white/15 bg-zinc-950/40 px-4 py-3 text-zinc-100 shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+          : 'text-slate-400 dark:text-slate-500'
+      }`}
     >
-      {renderPanelBody(state, showSeasonalAttribution)}
+      {renderPanelBody(state, hasSeasonalBackground, showSeasonalAttribution)}
     </section>
   );
 }
 
 function renderPanelBody(
   state: LocalWeatherState,
+  hasSeasonalBackground: boolean,
   showSeasonalAttribution: boolean,
 ) {
   switch (state.status) {
@@ -36,6 +43,7 @@ function renderPanelBody(
     case 'success':
       return (
         <ForecastContent
+          hasSeasonalBackground={hasSeasonalBackground}
           showSeasonalAttribution={showSeasonalAttribution}
           weather={state.weather}
         />
@@ -43,18 +51,16 @@ function renderPanelBody(
   }
 }
 
-function PanelMessage({
-  message,
-}: {
-  message: string;
-}) {
+function PanelMessage({ message }: { message: string }) {
   return <p>{message}</p>;
 }
 
 function ForecastContent({
+  hasSeasonalBackground,
   showSeasonalAttribution,
   weather,
 }: {
+  hasSeasonalBackground: boolean;
   showSeasonalAttribution: boolean;
   weather: WeatherReading;
 }) {
@@ -64,14 +70,19 @@ function ForecastContent({
 
   return (
     <>
-      <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-        {weather.current.location} · {weather.current.temperature} · {condition}.
+      <p
+        className={`text-sm font-medium ${
+          hasSeasonalBackground
+            ? 'text-white'
+            : 'text-zinc-500 dark:text-zinc-400'
+        }`}
+      >
+        {weather.current.location} · {weather.current.temperature} · {condition}
+        .
       </p>
       <p>
         Forecast for{' '}
-        <time dateTime={weather.forecastTime}>
-          {weather.forecastTimeLabel}
-        </time>
+        <time dateTime={weather.forecastTime}>{weather.forecastTimeLabel}</time>
         {' · '}
         <a
           href="https://api.met.no/"

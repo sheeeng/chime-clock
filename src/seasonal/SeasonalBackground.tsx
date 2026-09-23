@@ -18,7 +18,7 @@ export function SeasonalBackground({ season }: SeasonalBackgroundProps) {
       <Suspense fallback={null}>
         <SeasonalScene season={season} />
       </Suspense>
-      <div className="absolute inset-0 bg-zinc-50/55 dark:bg-zinc-950/60" />
+      <div className="absolute inset-0 bg-zinc-950/25" />
     </div>
   );
 }

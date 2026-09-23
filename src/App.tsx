@@ -9,10 +9,7 @@ import {
   type ChimeStyle,
   type ChimeTiming,
 } from './audio/chimes';
-import {
-  playSecondsSound,
-  type SecondsSoundStyle,
-} from './audio/seconds';
+import { playSecondsSound, type SecondsSoundStyle } from './audio/seconds';
 import { ClockDisplay } from './clock/ClockDisplay';
 import {
   clockModeOptions,
@@ -54,8 +51,7 @@ const LogoIcon = ({ className }: { className?: string }) => (
 );
 
 const commitSha = import.meta.env.VITE_GIT_COMMIT_SHA_8_CHAR as
-  | string
-  | undefined;
+  string | undefined;
 
 const chimeModeOptions = [
   { value: 'off', label: 'Off' },
@@ -137,7 +133,7 @@ export default function App() {
     readBackgroundPreference(storage),
   );
   const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>(
-    () => savedBackgroundMode ?? 'none',
+    () => savedBackgroundMode ?? 'dynamic',
   );
   const [ntpOffset, setNtpOffset] = useState<number | null>(null);
   const [ntpLoading, setNtpLoading] = useState<boolean>(true);
@@ -148,8 +144,6 @@ export default function App() {
   const chimePlaybackRef = useRef<ChimePlayback | null>(null);
   const lastCheckedMinute = useRef<number>(new Date().getMinutes());
   const lastCheckedSecond = useRef<number>(new Date().getSeconds());
-  // A visitor who has already chosen a background keeps that choice.
-  const backgroundChosenRef = useRef<boolean>(savedBackgroundMode !== null);
 
   // The weather feed stays enabled for the whole page session. It asks for
   // the visitor's location on load and uses Oslo when the browser cannot
@@ -164,6 +158,7 @@ export default function App() {
     backgroundMode,
     weatherState.status === 'success' ? weatherState.season : null,
   );
+  const hasSeasonalBackground = activeSeason !== null;
 
   const dateString = new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
@@ -291,16 +286,6 @@ export default function App() {
     [],
   );
 
-  // The first successful forecast enables the dynamic background for a
-  // visitor who has not chosen a background. This includes the Oslo fallback.
-  useEffect(() => {
-    if (backgroundChosenRef.current) return;
-    if (weatherState.status !== 'success') return;
-
-    backgroundChosenRef.current = true;
-    setBackgroundMode('dynamic');
-  }, [weatherState.status]);
-
   // A dynamic background with no reachable location has nothing to draw, so
   // the live selection returns to `None`.
   //
@@ -359,7 +344,6 @@ export default function App() {
   };
 
   const handleBackgroundChange = (mode: BackgroundMode) => {
-    backgroundChosenRef.current = true;
     setBackgroundMode(mode);
     writeBackgroundPreference(storage, mode);
 
@@ -382,7 +366,13 @@ export default function App() {
           transition={{ duration: 0.8, ease: 'easeOut' }}
           className="p-6 flex items-center justify-center"
         >
-          <div className="flex items-center gap-2 text-zinc-800 dark:text-zinc-200">
+          <div
+            className={`flex items-center gap-2 ${
+              hasSeasonalBackground
+                ? 'rounded-2xl border border-white/20 bg-zinc-950/45 px-4 py-2 text-white shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                : 'text-zinc-800 dark:text-zinc-200'
+            }`}
+          >
             <LogoIcon className="h-8 w-8" />
             <span className="text-3xl font-semibold tracking-tight">
               Chime Clock
@@ -409,12 +399,24 @@ export default function App() {
           {clockMode !== 'digital' && (
             <p className="sr-only">{`The time is ${clockTimeLabel}.`}</p>
           )}
-          <div className="mt-8 md:mt-12 text-lg sm:text-2xl text-zinc-500 dark:text-zinc-400 font-medium tracking-wide flex flex-col items-center gap-2">
+          <div
+            className={`mt-8 flex flex-col items-center gap-2 text-lg font-medium tracking-wide sm:text-2xl md:mt-12 ${
+              hasSeasonalBackground
+                ? 'rounded-2xl border border-white/20 bg-zinc-950/45 px-5 py-3 text-white shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                : 'text-zinc-500 dark:text-zinc-400'
+            }`}
+          >
             <span>{dateString}</span>
           </div>
 
           {!hideUI && (
-            <div className="mt-4 text-xs sm:text-sm text-zinc-400 dark:text-zinc-500 tracking-wide flex flex-col items-center justify-center gap-3 transition-opacity duration-500">
+            <div
+              className={`mt-4 flex flex-col items-center justify-center gap-3 text-xs tracking-wide transition-opacity duration-500 sm:text-sm ${
+                hasSeasonalBackground
+                  ? 'rounded-xl border border-white/15 bg-zinc-950/40 px-4 py-2 text-zinc-100 shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                  : 'text-zinc-400 dark:text-zinc-500'
+              }`}
+            >
               <div className="flex items-center gap-2">
                 {ntpLoading && <span>Syncing with NTP...</span>}
                 {ntpError && (
@@ -529,10 +531,17 @@ export default function App() {
             />
           </div>
           <WeatherPanel
+            hasSeasonalBackground={hasSeasonalBackground}
             showSeasonalAttribution={activeSeason !== null}
             state={weatherState}
           />
-          <div className="pb-4 pt-2 text-center text-xs text-slate-400 dark:text-slate-500">
+          <div
+            className={`pb-4 pt-2 text-center text-xs ${
+              hasSeasonalBackground
+                ? 'rounded-xl border border-white/15 bg-zinc-950/40 px-3 text-zinc-100 shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                : 'text-slate-400 dark:text-slate-500'
+            }`}
+          >
             <p>
               Built from{' '}
               {commitSha ? (
