@@ -79,7 +79,10 @@ function ForecastContent({
       <p>
         Forecast for{' '}
         <time dateTime={weather.forecastTime}>{weather.forecastTimeLabel}</time>
-        {'. Obtained from '}
+        .
+      </p>
+      <p>
+        Obtained from{' '}
         <a
           href="https://api.met.no/"
           target="_blank"
