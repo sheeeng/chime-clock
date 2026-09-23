@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { WeatherPanel } from './WeatherPanel';
 import type { LocalWeatherState } from './useLocalWeather';
@@ -22,6 +22,11 @@ function createWeather(
   return {
     forecastTime: '2026-09-22T12:00:00Z',
     forecastTimeLabel: 'September 22, 2026, at 12:00 UTC',
+    current: {
+      location: 'Current Location 📍',
+      temperature: '14.4°C',
+      condition: 'few clouds',
+    },
     summary: [
       'Current Location 📍',
       '14.4°C',
@@ -72,7 +77,10 @@ function createSuccessState(
 describe('WeatherPanel', () => {
   it('shows the permission check message while checking permission', () => {
     render(
-      <WeatherPanel state={{ status: 'checking-permission', permission: null }} />,
+      <WeatherPanel
+        showSeasonalAttribution={false}
+        state={{ status: 'checking-permission', permission: null }}
+      />,
     );
 
     expect(
@@ -85,6 +93,7 @@ describe('WeatherPanel', () => {
 
     render(
       <WeatherPanel
+        showSeasonalAttribution={false}
         state={{ status: 'prompt', permission: 'prompt', requestLocation }}
       />,
     );
@@ -99,6 +108,7 @@ describe('WeatherPanel', () => {
   it('shows the unavailable message on error', () => {
     render(
       <WeatherPanel
+        showSeasonalAttribution={false}
         state={{
           status: 'error',
           permission: 'denied',
@@ -115,7 +125,10 @@ describe('WeatherPanel', () => {
 
   it('shows the loading message while the forecast loads', () => {
     render(
-      <WeatherPanel state={{ status: 'loading', permission: 'granted' }} />,
+      <WeatherPanel
+        showSeasonalAttribution={false}
+        state={{ status: 'loading', permission: 'granted' }}
+      />,
     );
 
     expect(
@@ -124,7 +137,12 @@ describe('WeatherPanel', () => {
   });
 
   it('renders the forecast time and attribution', () => {
-    render(<WeatherPanel state={createSuccessState()} />);
+    render(
+      <WeatherPanel
+        showSeasonalAttribution
+        state={createSuccessState()}
+      />,
+    );
 
     expect(
       getByCompleteText('Forecast for September 22, 2026, at 12:00 UTC.'),
@@ -135,55 +153,33 @@ describe('WeatherPanel', () => {
     expect(
       screen.getByRole('link', { name: 'MET Norway' }),
     ).toHaveAttribute('href', 'https://api.met.no/');
+    expect(
+      getByCompleteText(
+        'Currently, 14.4°C, few clouds at Current Location 📍.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Seasonal background by Three UI.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('list', { name: 'Current conditions' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Forecast periods'),
+    ).not.toBeInTheDocument();
   });
 
-  it('renders four summary cards', () => {
-    render(<WeatherPanel state={createSuccessState()} />);
-
-    const summaryList = screen.getByRole('list', {
-      name: 'Current conditions',
-    });
-
-    expect(within(summaryList).getAllByRole('listitem')).toHaveLength(4);
-    expect(screen.getByText('14.4°C')).toBeInTheDocument();
-  });
-
-  it('renders three detail cards', () => {
-    const { container } = render(
-      <WeatherPanel state={createSuccessState()} />,
+  it('omits seasonal attribution without an active scene', () => {
+    render(
+      <WeatherPanel
+        showSeasonalAttribution={false}
+        state={createSuccessState()}
+      />,
     );
-    const detailsList = container.querySelector(
-      'dl[aria-label="Weather details"]',
-    );
-
-    expect(detailsList).not.toBeNull();
-    expect(within(detailsList as HTMLElement).getAllByRole('term')).toHaveLength(
-      3,
-    );
-    expect(screen.getByText('1026.5 hPa')).toBeInTheDocument();
-  });
-
-  it('renders the three forecast periods', () => {
-    render(<WeatherPanel state={createSuccessState()} />);
-
-    expect(screen.getByText('Next Hour')).toBeInTheDocument();
-    expect(screen.getByText('Next 6 Hours')).toBeInTheDocument();
-    expect(screen.getByText('Next 12 Hours')).toBeInTheDocument();
-  });
-
-  it('omits the precipitation row when precipitation is null', () => {
-    render(<WeatherPanel state={createSuccessState()} />);
-
-    const periodsPanel = screen.getByLabelText('Forecast periods');
-    const nextTwelveHours = within(periodsPanel)
-      .getByText('Next 12 Hours')
-      .closest('div');
 
     expect(
-      within(nextTwelveHours as HTMLElement).queryByText(/Precipitation/),
+      screen.queryByText('Seasonal background by Three UI.'),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('Precipitation: 0 mm')).toBeInTheDocument();
-    expect(screen.getByText('Precipitation: 2.4 mm')).toBeInTheDocument();
   });
 
   it('stops click propagation so the panel does not toggle the clock', () => {
@@ -191,7 +187,10 @@ describe('WeatherPanel', () => {
 
     render(
       <div onClick={onOuterClick}>
-        <WeatherPanel state={createSuccessState()} />
+        <WeatherPanel
+          showSeasonalAttribution={false}
+          state={createSuccessState()}
+        />
       </div>,
     );
 

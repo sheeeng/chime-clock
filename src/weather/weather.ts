@@ -3,6 +3,11 @@ export type SeasonId = 'spring' | 'summer' | 'autumn' | 'winter';
 export type WeatherReading = {
   forecastTime: string;
   forecastTimeLabel: string;
+  current: {
+    location: string;
+    temperature: string;
+    condition: string;
+  };
   summary: readonly string[];
   details: readonly { label: string; value: string }[];
   periods: readonly {
@@ -100,6 +105,11 @@ export function parseWeather(
   return {
     forecastTime: compactIso(currentEntry.time),
     forecastTimeLabel: formatForecastTimeLabel(currentEntry.time),
+    current: {
+      location: 'Current Location 📍',
+      temperature: `${formatFiniteNumber(airTemperature)}°C`,
+      condition: condition.condition.toLowerCase(),
+    },
     summary: [
       'Current Location 📍',
       `${formatFiniteNumber(airTemperature)}°C`,

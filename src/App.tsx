@@ -441,12 +441,6 @@ export default function App() {
           </div>
 
           {!hideUI && (
-            <div className="mt-8 w-full">
-              <WeatherPanel state={weatherState} />
-            </div>
-          )}
-
-          {!hideUI && (
             <div className="mt-4 text-xs sm:text-sm text-zinc-400 dark:text-zinc-500 tracking-wide flex flex-col items-center justify-center gap-3 transition-opacity duration-500">
               <div className="flex items-center gap-2">
                 {ntpLoading && <span>Syncing with NTP...</span>}
@@ -491,6 +485,10 @@ export default function App() {
               options={clockModeOptions}
               title="Clock"
               value={clockMode}
+            />
+            <WeatherPanel
+              showSeasonalAttribution={activeSeason !== null}
+              state={weatherState}
             />
             <OptionSelector
               icon={
@@ -561,11 +559,6 @@ export default function App() {
               value={backgroundMode}
             />
           </div>
-          {activeSeason && (
-            <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-              Seasonal background by Three UI.
-            </p>
-          )}
           <div className="pt-8 pb-4 text-center text-xs text-slate-400 dark:text-slate-500">
             <p>
               Built from{' '}

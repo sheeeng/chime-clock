@@ -632,10 +632,20 @@ describe('App', () => {
         'data-season',
         'summer',
       );
-      expect(screen.getByLabelText('Current conditions')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /^Currently, .+°C, .+ at Current Location 📍\.$/,
+        ),
+      ).toBeInTheDocument();
       expect(
         screen.getByText('Seasonal background by Three UI.'),
       ).toBeInTheDocument();
+      expect(
+        screen
+          .getByRole('radiogroup', { name: 'Clock' })
+          .compareDocumentPosition(screen.getByLabelText('Local weather')) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
 
     it('defaults to None and offers the enable button when prompting', async () => {

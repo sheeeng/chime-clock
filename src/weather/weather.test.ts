@@ -137,6 +137,11 @@ describe('parseWeather', () => {
     ).toEqual({
       forecastTime: '2026-09-22T12:00:00Z',
       forecastTimeLabel: 'September 22, 2026, at 12:00 UTC',
+      current: {
+        location: 'Current Location 📍',
+        temperature: '14.4°C',
+        condition: 'few clouds',
+      },
       summary: [
         'Current Location 📍',
         '14.4°C',
