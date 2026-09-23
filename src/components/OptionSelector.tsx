@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 
 type OptionValue = number | string;
@@ -25,18 +25,32 @@ export function OptionSelector<T extends OptionValue>({
   title,
   value,
 }: OptionSelectorProps<T>) {
+  // The visible title names the group, so assistive technology announces the
+  // same words the eye reads rather than a second, invisible wording.
+  const titleId = useId();
+
   return (
     <div className="flex flex-col items-center mt-5 first:mt-0">
       <div className="flex items-center gap-2 mb-3 text-zinc-500 dark:text-zinc-400">
         {icon}
-        <span className="font-semibold uppercase tracking-widest text-xs">
+        <span
+          id={titleId}
+          className="font-semibold uppercase tracking-widest text-xs"
+        >
           {title}
         </span>
       </div>
-      <div className="relative flex flex-wrap justify-center bg-zinc-100 dark:bg-zinc-800/60 rounded-2xl p-1.5 w-full sm:w-auto border border-zinc-200 dark:border-zinc-700">
+      <div
+        aria-labelledby={titleId}
+        role="radiogroup"
+        className="relative flex flex-wrap justify-center bg-zinc-100 dark:bg-zinc-800/60 rounded-2xl p-1.5 w-full sm:w-auto border border-zinc-200 dark:border-zinc-700"
+      >
         {options.map((option) => (
           <motion.button
             key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={value === option.value}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.95 }}
             onClick={(event) => {

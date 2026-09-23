@@ -22,6 +22,7 @@ import {
   type ClockMode,
 } from './clock/clockMode';
 import { OptionSelector } from './components/OptionSelector';
+import { createSafeStorage } from './safeStorage';
 import { SeasonalBackground } from './seasonal/SeasonalBackground';
 import {
   backgroundOptions,
@@ -106,8 +107,9 @@ function nextChimeAnimation(strikes: number): ChimeAnimation {
 
 /**
  * Returns the callback that asks the browser for a location, when the weather
- * feed is in a state that offers one. Every other state is already holding a
- * location or is still deciding whether it can ask for one.
+ * feed is in a state that offers one: a prompt it has not yet raised, or a
+ * failure that asking again could get past. A durable refusal offers nothing,
+ * because the browser has already given its final answer.
  */
 function getLocationRequest(state: LocalWeatherState) {
   if (state.status === 'prompt' || state.status === 'error') {
@@ -118,6 +120,11 @@ function getLocationRequest(state: LocalWeatherState) {
 }
 
 export default function App() {
+  // A preference is never worth a blank page or a dead click handler, so
+  // every read and every write goes through a storage that cannot throw. The
+  // seam belongs to this mount, so a browser that refuses storage keeps the
+  // choice for the page session and nothing longer.
+  const [storage] = useState(() => createSafeStorage());
   const [time, setTime] = useState(new Date());
   const [chimeMode, setChimeMode] = useState<ChimeMode>('off');
   const [chimeStyle, setChimeStyle] = useState<ChimeStyle>('classic');
@@ -127,10 +134,10 @@ export default function App() {
   const [secondsSoundStyle, setSecondsSoundStyle] =
     useState<SecondsSoundStyle>('off');
   const [clockMode, setClockMode] = useState<ClockMode>(() =>
-    readClockMode(window.localStorage),
+    readClockMode(storage),
   );
   const [savedBackgroundMode] = useState<BackgroundMode | null>(() =>
-    readBackgroundPreference(window.localStorage),
+    readBackgroundPreference(storage),
   );
   const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>(
     () => savedBackgroundMode ?? 'none',
@@ -156,6 +163,10 @@ export default function App() {
   // discard that answer along with the season the background is drawing.
   const weatherState = useLocalWeather({ enabled: true });
   const requestLocation = getLocationRequest(weatherState);
+  // `null` while the feed is not reporting an error, so the recovery effect
+  // reads one value rather than reaching into a union from inside its body.
+  const weatherErrorIsRecoverable =
+    weatherState.status === 'error' ? weatherState.recoverable : null;
   const activeSeason = resolveSeason(
     backgroundMode,
     weatherState.status === 'success' ? weatherState.season : null,
@@ -304,15 +315,24 @@ export default function App() {
   }, [weatherState.permission]);
 
   // A dynamic background with no reachable location has nothing to draw, so
-  // the selection returns to `None` and is saved, rather than leaving a
-  // choice on screen that never resolves.
+  // the live selection returns to `None`.
+  //
+  // Only a durable refusal is saved. A refused permission and a browser
+  // without geolocation will answer the same way on the next visit, so
+  // writing `none` records what the browser has already decided. A position
+  // that could not be fixed and a forecast that did not arrive are neither
+  // durable nor the visitor's doing, so a saved `Dynamic` survives them and
+  // is honoured again on the next visit.
   useEffect(() => {
     if (backgroundMode !== 'dynamic') return;
-    if (weatherState.status !== 'error') return;
+    if (weatherErrorIsRecoverable === null) return;
 
     setBackgroundMode('none');
-    writeBackgroundPreference(window.localStorage, 'none');
-  }, [backgroundMode, weatherState.status]);
+
+    if (!weatherErrorIsRecoverable) {
+      writeBackgroundPreference(storage, 'none');
+    }
+  }, [backgroundMode, storage, weatherErrorIsRecoverable]);
 
   const initAudio = () => {
     if (!audioCtxRef.current) {
@@ -356,15 +376,18 @@ export default function App() {
 
   const handleClockModeChange = (mode: ClockMode) => {
     setClockMode(mode);
-    writeClockMode(window.localStorage, mode);
+    writeClockMode(storage, mode);
   };
 
   const handleBackgroundChange = (mode: BackgroundMode) => {
     backgroundChosenRef.current = true;
     setBackgroundMode(mode);
-    writeBackgroundPreference(window.localStorage, mode);
+    writeBackgroundPreference(storage, mode);
 
     // Only `Dynamic` needs a location. A manual season never asks for one.
+    // After a recoverable failure the feed hands back a way to ask again, so
+    // choosing `Dynamic` a second time is a real retry rather than a
+    // selection that sits there.
     if (mode === 'dynamic') requestLocation?.();
   };
 
@@ -405,9 +428,7 @@ export default function App() {
             time={time}
           />
           {clockMode !== 'digital' && (
-            <p className="sr-only" data-testid="clock-time-fallback">
-              {`The time is ${clockTimeLabel}.`}
-            </p>
+            <p className="sr-only">{`The time is ${clockTimeLabel}.`}</p>
           )}
           <div className="mt-8 md:mt-12 text-lg sm:text-2xl text-zinc-500 dark:text-zinc-400 font-medium tracking-wide flex flex-col items-center gap-2">
             <span>{dateString}</span>
