@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { useState, useEffect, useRef } from 'react';
-import { Bell, BellOff } from 'lucide-react';
+import { Bell, BellOff, Clock3, Trees } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   getHourlyChimeCount,
@@ -13,7 +13,29 @@ import {
   playSecondsSound,
   type SecondsSoundStyle,
 } from './audio/seconds';
+import { ClockDisplay } from './clock/ClockDisplay';
+import {
+  clockModeOptions,
+  readClockMode,
+  writeClockMode,
+  type ChimeAnimation,
+  type ClockMode,
+} from './clock/clockMode';
 import { OptionSelector } from './components/OptionSelector';
+import { SeasonalBackground } from './seasonal/SeasonalBackground';
+import {
+  backgroundOptions,
+  readBackgroundPreference,
+  resolveInitialBackground,
+  resolveSeason,
+  writeBackgroundPreference,
+  type BackgroundMode,
+} from './seasonal/background';
+import { WeatherPanel } from './weather/WeatherPanel';
+import {
+  useLocalWeather,
+  type LocalWeatherState,
+} from './weather/useLocalWeather';
 
 const LogoIcon = ({ className }: { className?: string }) => (
   <svg
@@ -29,33 +51,6 @@ const LogoIcon = ({ className }: { className?: string }) => (
     <circle cx="12" cy="12" r="10" />
     <polyline points="7 9 12 12 17 9" />
   </svg>
-);
-
-const NumberTicker = ({ value }: { value: string }) => (
-  <div className="relative overflow-hidden inline-flex items-center justify-center -my-4 py-4">
-    <AnimatePresence mode="popLayout">
-      <motion.span
-        key={value}
-        initial={{ y: '50%', filter: 'blur(4px)', opacity: 0 }}
-        animate={{ y: '0%', filter: 'blur(0px)', opacity: 1 }}
-        exit={{ y: '-50%', filter: 'blur(4px)', opacity: 0 }}
-        transition={{ type: 'spring', bounce: 0, duration: 0.5 }}
-        className="inline-block"
-      >
-        {value}
-      </motion.span>
-    </AnimatePresence>
-  </div>
-);
-
-const Colon = () => (
-  <motion.span
-    animate={{ opacity: [1, 0.2, 1] }}
-    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
-    className="inline-block mx-0.5 md:mx-1 -translate-y-[0.05em] text-zinc-300 dark:text-zinc-700"
-  >
-    :
-  </motion.span>
 );
 
 const commitSha = import.meta.env.VITE_GIT_COMMIT_SHA_8_CHAR as
@@ -86,12 +81,60 @@ const secondsSoundOptions = [
 
 type ChimeMode = (typeof chimeModeOptions)[number]['value'];
 
+/**
+ * The number of chime sequences this page session has started. The counter
+ * lives in the module rather than in a component, so it keeps increasing no
+ * matter how often the clock mounts, unmounts, and mounts again, which is
+ * what `chimeAnimationSession.ts` requires of a chime identifier.
+ */
+let startedChimeCount = 0;
+
+/**
+ * Issues the identifier for one chime start. Every start and every restart
+ * takes a fresh one.
+ *
+ * The identifier is never read from the local clock, from the clock corrected
+ * against a network time server, or from the hour, because a correction can
+ * move a time reading backward, and the session refuses an identifier that
+ * does not increase.
+ */
+function nextChimeAnimation(strikes: number): ChimeAnimation {
+  startedChimeCount += 1;
+
+  return { id: startedChimeCount, strikes };
+}
+
+/**
+ * Returns the callback that asks the browser for a location, when the weather
+ * feed is in a state that offers one. Every other state is already holding a
+ * location or is still deciding whether it can ask for one.
+ */
+function getLocationRequest(state: LocalWeatherState) {
+  if (state.status === 'prompt' || state.status === 'error') {
+    return state.requestLocation;
+  }
+
+  return undefined;
+}
+
 export default function App() {
   const [time, setTime] = useState(new Date());
   const [chimeMode, setChimeMode] = useState<ChimeMode>('off');
   const [chimeStyle, setChimeStyle] = useState<ChimeStyle>('classic');
+  const [chimeAnimation, setChimeAnimation] = useState<ChimeAnimation | null>(
+    null,
+  );
   const [secondsSoundStyle, setSecondsSoundStyle] =
     useState<SecondsSoundStyle>('off');
+  const [clockMode, setClockMode] = useState<ClockMode>(() =>
+    readClockMode(window.localStorage),
+  );
+  const [savedBackgroundMode] = useState<BackgroundMode | null>(() =>
+    readBackgroundPreference(window.localStorage),
+  );
+  const [backgroundMode, setBackgroundMode] = useState<BackgroundMode>(
+    () => savedBackgroundMode ?? 'none',
+  );
   const [ntpOffset, setNtpOffset] = useState<number | null>(null);
   const [ntpLoading, setNtpLoading] = useState<boolean>(true);
   const [ntpError, setNtpError] = useState<boolean>(false);
@@ -101,31 +144,36 @@ export default function App() {
   const chimePlaybackRef = useRef<ChimePlayback | null>(null);
   const lastCheckedMinute = useRef<number>(new Date().getMinutes());
   const lastCheckedSecond = useRef<number>(new Date().getSeconds());
+  // A visitor who has already chosen a background keeps that choice. The
+  // permission answer therefore picks the background once, and only for a
+  // visitor who has never chosen one.
+  const backgroundChosenRef = useRef<boolean>(savedBackgroundMode !== null);
 
-  // Formatting time gracefully adapting to the user's local timezone & locale.
-  const formatParts = new Intl.DateTimeFormat(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).formatToParts(time);
-
-  let hour = '';
-  let minute = '';
-  let second = '';
-  let ampm = '';
-
-  formatParts.forEach((part) => {
-    if (part.type === 'hour') hour = part.value;
-    if (part.type === 'minute') minute = part.value;
-    if (part.type === 'second') second = part.value;
-    if (part.type === 'dayPeriod') ampm = part.value;
-  });
+  // The weather feed stays enabled for the whole page session. Both of its
+  // consumers need the permission answer: the dynamic background needs the
+  // season, and the panel needs the prompt state so it can offer the enable
+  // button while the background is still `None`. Disabling the feed would
+  // discard that answer along with the season the background is drawing.
+  const weatherState = useLocalWeather({ enabled: true });
+  const requestLocation = getLocationRequest(weatherState);
+  const activeSeason = resolveSeason(
+    backgroundMode,
+    weatherState.status === 'success' ? weatherState.season : null,
+  );
 
   const dateString = new Intl.DateTimeFormat('en-GB', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+  }).format(time);
+
+  // The analog and cuckoo models draw the time and cannot be read aloud, so
+  // both modes carry the same reading as text for assistive technology.
+  const clockTimeLabel = new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
   }).format(time);
 
   const formatDuration = (ms: number) => {
@@ -239,6 +287,33 @@ export default function App() {
     [],
   );
 
+  // The permission answer chooses the background for a visitor who has never
+  // chosen one: `Dynamic` when the browser has already granted a location,
+  // and `None` when it prompts, refuses, or cannot answer. The choice is not
+  // saved, so a later visit asks the browser again rather than freezing the
+  // answer the first visit happened to get.
+  useEffect(() => {
+    if (backgroundChosenRef.current) return;
+
+    const permission = weatherState.permission;
+
+    if (permission === null) return;
+
+    backgroundChosenRef.current = true;
+    setBackgroundMode(resolveInitialBackground(null, permission));
+  }, [weatherState.permission]);
+
+  // A dynamic background with no reachable location has nothing to draw, so
+  // the selection returns to `None` and is saved, rather than leaving a
+  // choice on screen that never resolves.
+  useEffect(() => {
+    if (backgroundMode !== 'dynamic') return;
+    if (weatherState.status !== 'error') return;
+
+    setBackgroundMode('none');
+    writeBackgroundPreference(window.localStorage, 'none');
+  }, [backgroundMode, weatherState.status]);
+
   const initAudio = () => {
     if (!audioCtxRef.current) {
       const AudioContext =
@@ -253,6 +328,10 @@ export default function App() {
   const stopChime = () => {
     chimePlaybackRef.current?.stop();
     chimePlaybackRef.current = null;
+    // Withdrawing the event closes the cuckoo door on the next frame. It
+    // leaves the session record alone, so ringing again takes a fresh
+    // identifier rather than resuming the sequence that was cancelled.
+    setChimeAnimation(null);
   };
 
   const startChime = (
@@ -270,10 +349,29 @@ export default function App() {
       count,
       timing,
     );
+    // The bird runs exactly as many cycles as the sequence has strikes, so
+    // the drawing and the sound always agree.
+    setChimeAnimation(nextChimeAnimation(count));
+  };
+
+  const handleClockModeChange = (mode: ClockMode) => {
+    setClockMode(mode);
+    writeClockMode(window.localStorage, mode);
+  };
+
+  const handleBackgroundChange = (mode: BackgroundMode) => {
+    backgroundChosenRef.current = true;
+    setBackgroundMode(mode);
+    writeBackgroundPreference(window.localStorage, mode);
+
+    // Only `Dynamic` needs a location. A manual season never asks for one.
+    if (mode === 'dynamic') requestLocation?.();
   };
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col font-sans transition-colors duration-500 selection:bg-indigo-500/30">
+    <div className="relative isolate min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 flex flex-col font-sans transition-colors duration-500 selection:bg-indigo-500/30">
+      <SeasonalBackground season={activeSeason} />
+
       {/* Header */}
       {!hideUI && (
         <motion.header
@@ -301,23 +399,25 @@ export default function App() {
         title="Click to toggle full-screen clock."
       >
         <div className="flex flex-col items-center w-full max-w-6xl mx-auto">
-          <div className="text-[14vw] sm:text-[12vw] md:text-[11vw] lg:text-[9rem] xl:text-[12rem] leading-none font-semibold tracking-tighter flex items-baseline justify-center gap-2 md:gap-4 w-full">
-            <div className="flex items-center justify-center font-mono text-zinc-900 dark:text-white">
-              <NumberTicker value={hour} />
-              <Colon />
-              <NumberTicker value={minute} />
-              <Colon />
-              <NumberTicker value={second} />
-            </div>
-            {ampm && (
-              <span className="text-[5vw] sm:text-[4vw] md:text-[3.5vw] lg:text-5xl xl:text-6xl text-zinc-500 dark:text-zinc-600 font-semibold uppercase ml-1 md:ml-4">
-                {ampm}
-              </span>
-            )}
-          </div>
+          <ClockDisplay
+            chimeAnimation={chimeAnimation}
+            mode={clockMode}
+            time={time}
+          />
+          {clockMode !== 'digital' && (
+            <p className="sr-only" data-testid="clock-time-fallback">
+              {`The time is ${clockTimeLabel}.`}
+            </p>
+          )}
           <div className="mt-8 md:mt-12 text-lg sm:text-2xl text-zinc-500 dark:text-zinc-400 font-medium tracking-wide flex flex-col items-center gap-2">
             <span>{dateString}</span>
           </div>
+
+          {!hideUI && (
+            <div className="mt-8 w-full">
+              <WeatherPanel state={weatherState} />
+            </div>
+          )}
 
           {!hideUI && (
             <div className="mt-4 text-xs sm:text-sm text-zinc-400 dark:text-zinc-500 tracking-wide flex flex-col items-center justify-center gap-3 transition-opacity duration-500">
@@ -356,6 +456,14 @@ export default function App() {
           className="p-6 pb-12 flex flex-col items-center gap-6"
         >
           <div className="flex flex-col items-center p-6 bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/60 dark:border-zinc-800 transition-all duration-300">
+            <OptionSelector
+              icon={<Clock3 className="h-5 w-5" />}
+              layoutId="clock-mode-active"
+              onChange={handleClockModeChange}
+              options={clockModeOptions}
+              title="Clock"
+              value={clockMode}
+            />
             <OptionSelector
               icon={
                 chimeMode === 'off' ? (
@@ -415,7 +523,20 @@ export default function App() {
               title="Seconds Sound"
               value={secondsSoundStyle}
             />
+            <OptionSelector
+              icon={<Trees className="h-5 w-5" />}
+              layoutId="background-active"
+              onChange={handleBackgroundChange}
+              options={backgroundOptions}
+              title="Background"
+              value={backgroundMode}
+            />
           </div>
+          {activeSeason && (
+            <p className="text-center text-xs text-slate-400 dark:text-slate-500">
+              Seasonal background by Three UI.
+            </p>
+          )}
           <div className="pt-8 pb-4 text-center text-xs text-slate-400 dark:text-slate-500">
             <p>
               Built from{' '}
