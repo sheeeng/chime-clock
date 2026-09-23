@@ -2,13 +2,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
-
-export type ChimeAnimation = {
-  id: number;
-  strikes: number;
-};
-
-export type ThreeClockMode = 'analog' | 'cuckoo';
+import { useChimeAnimationSession } from './chimeAnimationSession';
+import type { ChimeAnimation, ThreeClockMode } from './clockMode';
 
 type ThreeClockProps = {
   mode: ThreeClockMode;
@@ -395,6 +390,7 @@ function createDial(
  */
 function createBird(scale: number): THREE.Object3D {
   const bird = new THREE.Group();
+  bird.name = 'procedural-bird';
   const bodyMaterial = new THREE.MeshStandardMaterial({
     color: 0x8b5a2b,
     roughness: 0.85,
@@ -457,6 +453,7 @@ function createDoorPivot(door: THREE.Object3D): THREE.Object3D {
   );
 
   const pivot = new THREE.Group();
+  pivot.name = 'door-pivot';
   pivot.position.copy(hinge);
   parent.add(pivot);
   pivot.add(door);
@@ -544,8 +541,10 @@ export default function ThreeClock({
 }: ThreeClockProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const timeRef = useRef(time);
-  const chimeAnimationRef = useRef<ChimeAnimation | null>(null);
-  const chimeStartRef = useRef(0);
+  // The session record, not this component, decides when a sequence began, so
+  // a remount resumes the sequence instead of restarting it and a sequence
+  // that already ran out cannot play again.
+  const chimeSequenceRef = useChimeAnimationSession(chimeAnimation);
   const [status, setStatus] = useState<'loading' | 'ready' | 'failed'>(
     'loading',
   );
@@ -553,20 +552,6 @@ export default function ThreeClock({
   useEffect(() => {
     timeRef.current = time;
   }, [time]);
-
-  const chimeId = chimeAnimation?.id ?? null;
-  const chimeStrikes = chimeAnimation?.strikes ?? 0;
-
-  useEffect(() => {
-    if (chimeId === null || chimeStrikes <= 0) {
-      // A stopped or empty sequence cancels immediately.
-      chimeAnimationRef.current = null;
-      return;
-    }
-
-    chimeAnimationRef.current = { id: chimeId, strikes: chimeStrikes };
-    chimeStartRef.current = performance.now();
-  }, [chimeId, chimeStrikes]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -626,13 +611,13 @@ export default function ThreeClock({
       }
 
       if (cuckoo) {
-        const animation = chimeAnimationRef.current;
-        const elapsed = animation
-          ? performance.now() - chimeStartRef.current
+        const sequence = chimeSequenceRef.current;
+        const elapsed = sequence
+          ? performance.now() - sequence.startedAtMilliseconds
           : 0;
-        const state = getCuckooAnimation(elapsed, animation?.strikes ?? 0);
+        const state = getCuckooAnimation(elapsed, sequence?.strikes ?? 0);
 
-        if (animation && !state.active) chimeAnimationRef.current = null;
+        if (sequence && !state.active) chimeSequenceRef.current = null;
 
         cuckoo.doorPivot.rotation.y = state.doorRotation;
         cuckoo.bird.position.z =

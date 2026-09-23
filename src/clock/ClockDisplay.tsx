@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import type { ClockMode } from './clockMode';
-import type { ChimeAnimation } from './ThreeClock';
+import { useChimeAnimationSession } from './chimeAnimationSession';
+import type { ChimeAnimation, ClockMode } from './clockMode';
 
 // Three.js, the loaders, and the model assets only arrive with this chunk, so
 // the digital mode never downloads them.
@@ -91,6 +91,11 @@ export function ClockDisplay({
   time,
   chimeAnimation,
 }: ClockDisplayProps) {
+  // Every mode records the sequence, so a chime that rings while the digital
+  // or analog clock is on screen is already spent, rather than waiting to
+  // play the moment the cuckoo appears.
+  useChimeAnimationSession(chimeAnimation);
+
   if (mode === 'digital') return <DigitalClock time={time} />;
 
   return (
