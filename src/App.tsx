@@ -402,7 +402,7 @@ export default function App() {
           <div
             className={`mt-8 flex flex-col items-center gap-2 text-lg font-medium tracking-wide sm:text-2xl md:mt-12 ${
               hasSeasonalBackground
-                ? 'rounded-2xl border border-white/20 bg-zinc-950/45 px-5 py-3 text-white shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                ? 'text-white [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]'
                 : 'text-zinc-500 dark:text-zinc-400'
             }`}
           >
@@ -413,7 +413,7 @@ export default function App() {
             <div
               className={`mt-4 flex flex-col items-center justify-center gap-3 text-xs tracking-wide transition-opacity duration-500 sm:text-sm ${
                 hasSeasonalBackground
-                  ? 'rounded-xl border border-white/15 bg-zinc-950/40 px-4 py-2 text-zinc-100 shadow-lg shadow-zinc-950/30 backdrop-blur-sm'
+                  ? 'text-zinc-100 [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]'
                   : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
@@ -451,7 +451,7 @@ export default function App() {
           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
           className="p-6 pb-12 flex flex-col items-center gap-6"
         >
-          <div className="flex flex-col items-center p-6 bg-white dark:bg-zinc-900 rounded-3xl w-full max-w-2xl shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/60 dark:border-zinc-800 transition-all duration-300">
+          <div className={`flex flex-col items-center p-6 rounded-3xl w-full max-w-2xl transition-all duration-300 ${hasSeasonalBackground ? '' : 'bg-white dark:bg-zinc-900 shadow-xl shadow-zinc-200/50 dark:shadow-none border border-zinc-200/60 dark:border-zinc-800'}`}>
             <OptionSelector
               activation="manual"
               icon={<Clock3 className="h-5 w-5" />}
