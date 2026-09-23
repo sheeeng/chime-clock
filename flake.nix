@@ -25,6 +25,7 @@
             packages = with pkgs; [
               google-cloud-sdk # https://search.nixos.org/packages?channel=unstable&type=packages&show=google-cloud-sdk
               nodejs-slim # https://search.nixos.org/packages?channel=unstable&type=packages&show=nodejs-slim
+              zsh # https://search.nixos.org/packages?channel=unstable&type=packages&show=zsh
             ];
 
             shellHook = ''
@@ -39,6 +40,11 @@
               export PATH="$VERCEL_PREFIX/bin:$PATH"
 
               echo "Vercel CLI is ready to use!"
+              vercel --version
+              echo "Google Cloud SDK is ready to use!"
+              gcloud --version
+
+              exec ${pkgs.lib.getExe pkgs.zsh}
             '';
           };
         }
