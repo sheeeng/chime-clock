@@ -29,6 +29,13 @@ export const CUCKOO_CYCLE_MILLISECONDS = 1000;
 /** The door stands fully open at a quarter turn. */
 export const CUCKOO_DOOR_OPEN_RADIANS = Math.PI / 2;
 
+/**
+ * The door and the procedural bird grow to this many times their modeled
+ * size. The door widens and heightens only, so its depth and hinge stay as
+ * modeled, and the bird's size, resting position, and travel scale with it.
+ */
+export const CUCKOO_ENLARGEMENT_SCALE = 1.5;
+
 const CUCKOO_EXIT_MILLISECONDS = 250;
 const CUCKOO_HOLD_MILLISECONDS = 500;
 const CUCKOO_RETURN_MILLISECONDS = 750;
@@ -386,9 +393,11 @@ function createDial(
 
 /**
  * Builds a small wooden bird from sphere, cone, and box geometries because the
- * source model has no bird mesh.
+ * source model has no bird mesh. Exported so tests can compare a bird built at
+ * a given scale against one built at that scale times
+ * `CUCKOO_ENLARGEMENT_SCALE`, without duplicating its geometry math.
  */
-function createBird(scale: number): THREE.Object3D {
+export function createBird(scale: number): THREE.Object3D {
   const bird = new THREE.Group();
   bird.name = 'procedural-bird';
   const bodyMaterial = new THREE.MeshStandardMaterial({
@@ -472,10 +481,23 @@ function createCuckooParts(model: THREE.Object3D): CuckooParts | null {
     if (arm) arm.visible = false;
   }
 
+  const modeledDoorSize = new THREE.Box3()
+    .setFromObject(door)
+    .getSize(new THREE.Vector3());
+
+  // The door widens and heightens by the enlargement scale. Its depth is
+  // untouched, so createDoorPivot still finds the hinge at the door's own
+  // right edge and swings the enlarged door exactly as before.
+  door.scale.x *= CUCKOO_ENLARGEMENT_SCALE;
+  door.scale.y *= CUCKOO_ENLARGEMENT_SCALE;
+
   const doorBox = new THREE.Box3().setFromObject(door);
   const doorSize = doorBox.getSize(new THREE.Vector3());
   const doorCenter = doorBox.getCenter(new THREE.Vector3());
-  const scale = Math.min(doorSize.x, doorSize.y) * 0.34;
+  const scale =
+    Math.min(modeledDoorSize.x, modeledDoorSize.y) *
+    0.34 *
+    CUCKOO_ENLARGEMENT_SCALE;
 
   const doorPivot = createDoorPivot(door);
 

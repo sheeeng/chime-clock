@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
 import ThreeClock, {
   CUCKOO_DOOR_OPEN_RADIANS,
+  CUCKOO_ENLARGEMENT_SCALE,
+  createBird,
   getCuckooAnimation,
 } from './ThreeClock';
 import { ClockDisplay } from './ClockDisplay';
@@ -318,6 +320,85 @@ describe('ThreeClock lifecycle', () => {
       expect(harness.renderers[1].dispose).not.toHaveBeenCalled();
 
       second.unmount();
+    });
+  });
+
+  describe('cuckoo sizing', () => {
+    // The fake FBX model measures its door at 5 by 6 by 1 model units, so
+    // every expectation below is expressed against that known size.
+    const modeledDoorSize = { x: 5, y: 6, z: 1 };
+
+    it('enlarges the modeled door width and height while its depth stays modeled', async () => {
+      render(<ThreeClock mode="cuckoo" time={time} chimeAnimation={null} />);
+      await waitForReadyClock();
+      stepFrame();
+
+      const { doorPivot } = cuckooParts();
+      const size = new THREE.Box3()
+        .setFromObject(doorPivot)
+        .getSize(new THREE.Vector3());
+
+      expect(size.x).toBeCloseTo(modeledDoorSize.x * CUCKOO_ENLARGEMENT_SCALE);
+      expect(size.y).toBeCloseTo(modeledDoorSize.y * CUCKOO_ENLARGEMENT_SCALE);
+      expect(size.z).toBeCloseTo(modeledDoorSize.z);
+    });
+
+    it('enlarges the procedural bird by the same factor and keeps it centered while hidden', async () => {
+      render(<ThreeClock mode="cuckoo" time={time} chimeAnimation={null} />);
+      await waitForReadyClock();
+      stepFrame();
+
+      const { bird } = cuckooParts();
+
+      const birdScale =
+        Math.min(modeledDoorSize.x, modeledDoorSize.y) *
+        0.34 *
+        CUCKOO_ENLARGEMENT_SCALE;
+      const expectedSize = new THREE.Box3()
+        .setFromObject(createBird(birdScale))
+        .getSize(new THREE.Vector3());
+      const actualSize = new THREE.Box3()
+        .setFromObject(bird)
+        .getSize(new THREE.Vector3());
+
+      expect(actualSize.x).toBeCloseTo(expectedSize.x);
+      expect(actualSize.y).toBeCloseTo(expectedSize.y);
+      expect(actualSize.z).toBeCloseTo(expectedSize.z);
+
+      // Centered on the door, and still behind the door's near face
+      // (modeledDoorSize.z / 2 + the door's position, or 4.5 in world units)
+      // while closed.
+      expect(bird.position.x).toBeCloseTo(0);
+      expect(bird.position.z).toBeLessThan(4.5);
+      expect(bird.visible).toBe(false);
+    });
+
+    it('clears the enlarged door opening once fully out and returns fully inside', async () => {
+      render(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 1, strikes: 1 }}
+        />,
+      );
+      await waitForReadyClock();
+
+      now = 250;
+      stepFrame();
+      const { bird: birdOut } = cuckooParts();
+
+      // 5.5 is the door's enlarged far face (its world maximum z); the bird
+      // clears it with room to spare once fully out.
+      expect(birdOut.position.z).toBeGreaterThan(5.5);
+      expect(birdOut.position.x).toBeCloseTo(0);
+      expect(birdOut.visible).toBe(true);
+
+      now = 1_000;
+      stepFrame();
+      const { bird: birdIn } = cuckooParts();
+
+      expect(birdIn.position.z).toBeLessThan(4.5);
+      expect(birdIn.visible).toBe(false);
     });
   });
 
