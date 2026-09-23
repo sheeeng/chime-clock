@@ -9,10 +9,9 @@ set -o nounset  # set -u # Treat unset variables and parameters other than the s
 # https://www.gnu.org/software/bash/manual/html_node/The-Shopt-Builtin.html
 shopt -s inherit_errexit # If set, command substitution inherits the value of the errexit option, instead of unsetting it in the subshell environment. This option is enabled when POSIX mode is enabled.
 
-if [ -d ".git" ] || git rev-parse --git-dir > /dev/null 2>&1; then
-  GIT_ROOT_DIRECTORY=$(git rev-parse --show-toplevel)
-  echo "\${GIT_ROOT_DIRECTORY}: ${GIT_ROOT_DIRECTORY}"
-fi
+GIT_ROOT_DIRECTORY="$(git rev-parse --show-toplevel)"
+readonly GIT_ROOT_DIRECTORY
+echo "\${GIT_ROOT_DIRECTORY}: ${GIT_ROOT_DIRECTORY}"
 SCRIPT_DIRECTORY="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 echo "\${SCRIPT_DIRECTORY}: ${SCRIPT_DIRECTORY}"
 
@@ -25,8 +24,10 @@ echo "\${TEMPORARY_DIRECTORY}: ${TEMPORARY_DIRECTORY}"
 
 
 readonly GITHUB_ENVIRONMENT="firebase"
-readonly GOOGLE_CLOUD_PROJECT_ID="chime-clock"
-readonly REPOSITORY="sheeeng/chime-clock"
+GOOGLE_CLOUD_PROJECT_ID="$(basename "${GIT_ROOT_DIRECTORY}")"
+readonly GOOGLE_CLOUD_PROJECT_ID
+REPOSITORY="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
+readonly REPOSITORY
 REPOSITORY_ID="$(gh api "repos/${REPOSITORY}" --jq '.id')"
 readonly REPOSITORY_ID
 readonly SERVICE_ACCOUNT="github-action-${REPOSITORY_ID}@${GOOGLE_CLOUD_PROJECT_ID}.iam.gserviceaccount.com"
@@ -61,17 +62,17 @@ run_silently gh api \
   "repos/${REPOSITORY}/environments/${GITHUB_ENVIRONMENT}"
 printf 'Created or updated the %s GitHub environment for the %s repository.\n' "${GITHUB_ENVIRONMENT}" "${REPOSITORY}"
 
-run_silently gh secret set FIREBASE_GOOGLE_CLOUD_PROJECT_ID \
+run_silently gh secret set FIREBASE_PROJECT_ID \
   --env "${GITHUB_ENVIRONMENT}" \
   --repo "${REPOSITORY}" \
   --body "${GOOGLE_CLOUD_PROJECT_ID}"
-printf 'Set the FIREBASE_GOOGLE_CLOUD_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
+printf 'Set the FIREBASE_PROJECT_ID GitHub Actions secret for the %s repository.\n' "${REPOSITORY}"
 
-run_silently gh secret set FIREBASE_GOOGLE_CLOUD_PROJECT_ID \
+run_silently gh secret set FIREBASE_PROJECT_ID \
   --app dependabot \
   --repo "${REPOSITORY}" \
   --body "${GOOGLE_CLOUD_PROJECT_ID}"
-printf 'Set the FIREBASE_GOOGLE_CLOUD_PROJECT_ID Dependabot secret for the %s repository.\n' "${REPOSITORY}"
+printf 'Set the FIREBASE_PROJECT_ID Dependabot secret for the %s repository.\n' "${REPOSITORY}"
 
 run_silently gcloud config set project "${GOOGLE_CLOUD_PROJECT_ID}"
 printf 'Set the Google Cloud project to %s for the %s repository.\n' "${GOOGLE_CLOUD_PROJECT_ID}" "${REPOSITORY}"

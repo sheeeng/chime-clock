@@ -9,7 +9,8 @@ set -o pipefail
 shopt -s inherit_errexit
 
 readonly GITHUB_ENVIRONMENT="vercel"
-readonly REPOSITORY="sheeeng/chime-clock"
+REPOSITORY="$(gh repo view --json nameWithOwner --jq '.nameWithOwner')"
+readonly REPOSITORY
 
 GIT_ROOT_DIRECTORY="$(git rev-parse --show-toplevel)"
 readonly GIT_ROOT_DIRECTORY
