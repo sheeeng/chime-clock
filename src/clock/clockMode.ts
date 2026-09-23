@@ -11,6 +11,10 @@ export type ThreeClockMode = Exclude<ClockMode, 'digital'>;
  * One chime sequence to animate. The identifier distinguishes one sequence
  * from the next, and the strike count sets how many bird cycles run.
  *
+ * Identifiers are unique and strictly increasing for each chime start during
+ * one page session, and every start or restart takes a fresh one.
+ * `chimeAnimationSession.ts` documents and enforces the full contract.
+ *
  * This type lives here rather than in the Three.js module so that a consumer
  * who imports it without the `type` keyword still cannot pull Three.js, the
  * loaders, or the model assets into the digital bundle.

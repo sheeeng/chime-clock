@@ -2,6 +2,38 @@ import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { ChimeAnimation } from './clockMode';
 
+/**
+ * The chime identifier contract.
+ *
+ * `ChimeAnimation.id` names one chime start. The producer of the event owes
+ * the clock three guarantees, and the clock owes the producer one behavior in
+ * return.
+ *
+ * 1. **Unique.** Two different chime starts never share an identifier during
+ *    one page session.
+ * 2. **Increasing.** Each new start carries an identifier greater than every
+ *    identifier issued before it in the same page session.
+ * 3. **Fresh on every start.** A restart is a start. Stopping a sequence and
+ *    ringing again is two starts and therefore two identifiers. Task 9 issues
+ *    a newly incremented identifier for every start and every restart.
+ *
+ * In return the clock treats a repeated identifier as the same sequence seen
+ * again rather than as a new one, which is what lets a chime survive a
+ * remount or a mode change without replaying. Identifiers reset when the page
+ * reloads, because the session record resets with it.
+ *
+ * **Stop semantics.** Withdrawing the event, that is passing `null`, cancels
+ * the drawing that is on screen: the door closes and the bird hides on the
+ * next frame. It does not erase the session record and it does not rewind the
+ * sequence. Passing the same identifier again therefore resumes the original
+ * sequence at its true elapsed phase, and a sequence that has already run out
+ * stays out. Ringing again after a stop requires a new identifier.
+ *
+ * The contract is enforced rather than assumed. An identifier below the
+ * current record is stale, so it never replaces the record and never draws. A
+ * producer that breaks the second guarantee loses its animation instead of
+ * corrupting the record of the sequence that is running.
+ */
 type ObservedChimeAnimation = {
   id: number;
   startedAtMilliseconds: number;
@@ -18,7 +50,7 @@ export type ChimeSequence = {
 };
 
 /**
- * The chime sequence this application session has already seen. The record
+ * The newest chime sequence this application session has seen. The record
  * lives in the module rather than in a component, so it survives every mount,
  * unmount, and remount of the clock until the page reloads.
  */
@@ -28,12 +60,13 @@ let observedChimeAnimation: ObservedChimeAnimation | null = null;
  * Records the arrival of a chime sequence and returns the moment the sequence
  * began, measured on the same monotonic clock the renderer reads.
  *
- * The first observation of an identifier fixes its start time. Every later
- * observation of that identifier returns the original start time, so a
- * sequence advances toward its end no matter how often the clock remounts. A
- * finished sequence therefore stays finished, and a sequence that arrived
- * while another mode was on screen is already spent by the time the cuckoo
- * appears.
+ * An identifier greater than the record, or no record at all, starts a new
+ * sequence now. The identifier of the record returns the start time already
+ * fixed for it, so a sequence advances toward its end no matter how often the
+ * clock remounts. A finished sequence therefore stays finished, and a
+ * sequence that arrived while another mode was on screen is already spent by
+ * the time the cuckoo appears. An identifier below the record is stale and is
+ * refused without disturbing the record.
  *
  * Returns `null` when there is nothing to animate.
  */
@@ -48,17 +81,31 @@ export function observeChimeAnimation(
     return null;
   }
 
-  if (observedChimeAnimation?.id !== animation.id) {
-    observedChimeAnimation = {
-      id: animation.id,
-      startedAtMilliseconds: performance.now(),
-    };
+  const record = observedChimeAnimation;
+
+  if (record !== null && animation.id === record.id) {
+    return record.startedAtMilliseconds;
   }
+
+  // A stale identifier belongs to a sequence the session has already moved
+  // past. Replacing the record with it would restart an old chime and lose
+  // the origin of the one that is running.
+  if (record !== null && animation.id < record.id) return null;
+
+  observedChimeAnimation = {
+    id: animation.id,
+    startedAtMilliseconds: performance.now(),
+  };
 
   return observedChimeAnimation.startedAtMilliseconds;
 }
 
-/** Clears the record. Tests use this to isolate one case from the next. */
+/**
+ * Clears the record. Tests use this to isolate one case from the next.
+ *
+ * Nothing in the application calls this, so the bundler drops it from the
+ * production build. The Task 8 report records the evidence.
+ */
 export function resetChimeAnimationSession(): void {
   observedChimeAnimation = null;
 }
@@ -73,7 +120,8 @@ export function resetChimeAnimationSession(): void {
  * finished before a remount cannot start again.
  *
  * The ref holds `null` whenever there is nothing to animate, which cancels a
- * stopped sequence on the next frame.
+ * stopped or stale sequence on the next frame. The hook owns this ref. A
+ * consumer reads it every frame and never writes to it.
  */
 export function useChimeAnimationSession(
   animation: ChimeAnimation | null,
@@ -84,6 +132,8 @@ export function useChimeAnimationSession(
 
   useEffect(() => {
     if (id === null) {
+      // Stopping cancels the drawing without erasing the record, so ringing
+      // again needs a new identifier.
       sequenceRef.current = null;
       return;
     }

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClockDisplay } from './ClockDisplay';
+import { resetChimeAnimationSession } from './chimeAnimationSession';
 
 const threeClock = vi.hoisted(() => {
   let release: () => void = () => {};
@@ -52,6 +53,17 @@ function formattedParts(value: Date) {
 }
 
 describe('ClockDisplay', () => {
+  // The session record lives in module scope and outlives every render, so
+  // each case starts from an empty record rather than inheriting the chime
+  // identifiers of the case before it.
+  beforeEach(() => {
+    resetChimeAnimationSession();
+  });
+
+  afterEach(() => {
+    resetChimeAnimationSession();
+  });
+
   describe('digital mode', () => {
     beforeEach(() => {
       threeClock.imported.mockClear();

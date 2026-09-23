@@ -385,6 +385,114 @@ describe('ThreeClock lifecycle', () => {
       expect(bird.visible).toBe(false);
     });
 
+    it('restarts the sequence when a stop is followed by a new identifier', async () => {
+      const view = render(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 1, strikes: 1 }}
+        />,
+      );
+      await waitForReadyClock();
+
+      now = 250;
+      stepFrame();
+      expect(cuckooParts().doorPivot.rotation.y).toBeCloseTo(
+        CUCKOO_DOOR_OPEN_RADIANS,
+      );
+
+      view.rerender(
+        <ThreeClock mode="cuckoo" time={time} chimeAnimation={null} />,
+      );
+      stepFrame();
+      expect(cuckooParts().doorPivot.rotation.y).toBe(0);
+
+      now = 5_000;
+      view.rerender(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 2, strikes: 1 }}
+        />,
+      );
+      now = 5_125;
+      stepFrame();
+
+      const { doorPivot, bird } = cuckooParts();
+
+      expect(doorPivot.rotation.y).toBeCloseTo(CUCKOO_DOOR_OPEN_RADIANS / 2);
+      expect(bird.visible).toBe(true);
+    });
+
+    it('does not rewind the sequence when a stop is followed by the same identifier', async () => {
+      const chimeAnimation = { id: 1, strikes: 1 };
+      const view = render(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={chimeAnimation}
+        />,
+      );
+      await waitForReadyClock();
+
+      now = 250;
+      stepFrame();
+      expect(cuckooParts().doorPivot.rotation.y).toBeGreaterThan(0);
+
+      view.rerender(
+        <ThreeClock mode="cuckoo" time={time} chimeAnimation={null} />,
+      );
+      stepFrame();
+
+      // The single strike is long spent, so repeating the identifier draws
+      // nothing rather than ringing again.
+      now = 5_000;
+      view.rerender(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={chimeAnimation}
+        />,
+      );
+      now = 5_125;
+      stepFrame();
+
+      const { doorPivot, bird } = cuckooParts();
+
+      expect(doorPivot.rotation.y).toBe(0);
+      expect(bird.visible).toBe(false);
+    });
+
+    it('ignores an identifier below the one already recorded', async () => {
+      const view = render(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 9, strikes: 1 }}
+        />,
+      );
+      await waitForReadyClock();
+
+      now = 1_000;
+      stepFrame();
+      expect(cuckooParts().doorPivot.rotation.y).toBe(0);
+
+      view.rerender(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 8, strikes: 1 }}
+        />,
+      );
+      now = 1_125;
+      stepFrame();
+
+      const { doorPivot, bird } = cuckooParts();
+
+      expect(doorPivot.rotation.y).toBe(0);
+      expect(bird.visible).toBe(false);
+    });
+
     it('does not replay a finished sequence after a remount', async () => {
       const finished = { id: 1, strikes: 1 };
       const view = render(

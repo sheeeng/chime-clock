@@ -615,9 +615,9 @@ export default function ThreeClock({
         const elapsed = sequence
           ? performance.now() - sequence.startedAtMilliseconds
           : 0;
+        // The hook owns the sequence ref. The loop only reads it, and an
+        // exhausted sequence already resolves to the idle placement.
         const state = getCuckooAnimation(elapsed, sequence?.strikes ?? 0);
-
-        if (sequence && !state.active) chimeSequenceRef.current = null;
 
         cuckoo.doorPivot.rotation.y = state.doorRotation;
         cuckoo.bird.position.z =
