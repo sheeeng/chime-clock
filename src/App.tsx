@@ -549,11 +549,7 @@ export default function App() {
                   href={`https://github.com/sheeeng/chime-clock/commit/${commitSha}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className={`underline underline-offset-2 transition-colors ${
-                    hasSeasonalBackground
-                      ? 'text-blue-300 hover:text-blue-200'
-                      : 'text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300'
-                  }`}
+                  className="underline underline-offset-2 transition-colors text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300"
                 >
                   {commitSha}
                 </a>
