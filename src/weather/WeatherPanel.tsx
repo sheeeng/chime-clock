@@ -84,11 +84,7 @@ function ForecastContent({
           href="https://api.met.no/"
           target="_blank"
           rel="noopener noreferrer"
-          className={`underline underline-offset-2 transition-colors ${
-            hasSeasonalBackground
-              ? 'text-blue-300 hover:text-blue-200'
-              : 'text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300'
-          }`}
+          className="underline underline-offset-[0.15em] text-[#0969da] dark:text-[#58a6ff]"
         >
           MET Norway
         </a>
@@ -100,11 +96,7 @@ function ForecastContent({
               href="https://threeui.com/browse"
               target="_blank"
               rel="noopener noreferrer"
-              className={`underline underline-offset-2 transition-colors ${
-                hasSeasonalBackground
-                  ? 'text-blue-300 hover:text-blue-200'
-                  : 'text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 dark:hover:text-indigo-300'
-              }`}
+              className="underline underline-offset-[0.15em] text-[#0969da] dark:text-[#58a6ff]"
             >
               Three UI
             </a>
