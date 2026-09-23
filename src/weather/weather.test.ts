@@ -182,7 +182,9 @@ describe('parseWeather', () => {
       },
     });
 
-    expect(() => parseWeather(forecast)).toThrow('air_temperature');
+    expect(() =>
+      parseWeather(forecast, new Date('2026-09-22T12:20:00Z')),
+    ).toThrow('air_temperature');
   });
 
   it('uses the runtime locale when formatting the forecast time label', () => {
