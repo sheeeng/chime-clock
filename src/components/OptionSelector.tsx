@@ -1,4 +1,4 @@
-import { useId, type ReactNode } from 'react';
+import { useId, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 
 type OptionValue = number | string;
@@ -28,6 +28,60 @@ export function OptionSelector<T extends OptionValue>({
   // The visible title names the group, so assistive technology announces the
   // same words the eye reads rather than a second, invisible wording.
   const titleId = useId();
+  const optionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const checkedIndex = options.findIndex((option) => option.value === value);
+  // A radio group holds one tab stop. The checked option owns it, so tabbing
+  // in lands on the current choice. When no option matches the value, the
+  // first one owns it instead, so the group never drops out of the tab order.
+  const tabbableIndex = checkedIndex === -1 ? 0 : checkedIndex;
+
+  function selectAt(index: number) {
+    const option = options[index];
+
+    if (!option) return;
+
+    // Focus moves first so the reader announces the option it lands on, then
+    // the choice is reported. A radio group selects on arrival, so moving and
+    // choosing are the same action.
+    optionRefs.current[index]?.focus();
+
+    if (option.value !== value) {
+      onChange(option.value);
+    }
+  }
+
+  function handleKeyDown(
+    event: KeyboardEvent<HTMLButtonElement>,
+    index: number,
+  ) {
+    const count = options.length;
+
+    if (count === 0) return;
+
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        event.preventDefault();
+        selectAt((index + 1) % count);
+        return;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        event.preventDefault();
+        selectAt((index - 1 + count) % count);
+        return;
+      case 'Home':
+        event.preventDefault();
+        selectAt(0);
+        return;
+      case 'End':
+        event.preventDefault();
+        selectAt(count - 1);
+        return;
+      default:
+        return;
+    }
+  }
 
   return (
     <div className="flex flex-col items-center mt-5 first:mt-0">
@@ -45,14 +99,19 @@ export function OptionSelector<T extends OptionValue>({
         role="radiogroup"
         className="relative flex flex-wrap justify-center bg-zinc-100 dark:bg-zinc-800/60 rounded-2xl p-1.5 w-full sm:w-auto border border-zinc-200 dark:border-zinc-700"
       >
-        {options.map((option) => (
+        {options.map((option, index) => (
           <motion.button
             key={option.value}
+            ref={(element: HTMLButtonElement | null) => {
+              optionRefs.current[index] = element;
+            }}
             type="button"
             role="radio"
             aria-checked={value === option.value}
+            tabIndex={index === tabbableIndex ? 0 : -1}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.95 }}
+            onKeyDown={(event) => handleKeyDown(event, index)}
             onClick={(event) => {
               event.stopPropagation();
               onChange(option.value);

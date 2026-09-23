@@ -8,6 +8,7 @@ import {
   vi,
   type MockInstance,
 } from 'vitest';
+import { drainPendingWork, waitForCondition } from '../test/waiting';
 import { useLocalWeather } from './useLocalWeather';
 
 const FORECAST_URL =
@@ -244,7 +245,7 @@ describe('useLocalWeather', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  describe('durable failures', () => {
+  describe('refused permission', () => {
     it('reports a refused permission as final and offers no retry', async () => {
       stubNavigator({
         permissions: {
@@ -262,8 +263,8 @@ describe('useLocalWeather', () => {
       }
 
       expect(result.current.permission).toBe('denied');
-      expect(result.current.recoverable).toBe(false);
-      expect(result.current.requestLocation).toBeUndefined();
+      expect(result.current.reason).toBe('refused');
+      expect('requestLocation' in result.current).toBe(false);
       expect(result.current.message).toBe('Local weather is unavailable.');
       expect(fetch).not.toHaveBeenCalled();
     });
@@ -297,11 +298,13 @@ describe('useLocalWeather', () => {
       }
 
       expect(failed.permission).toBe('denied');
-      expect(failed.recoverable).toBe(false);
-      expect(failed.requestLocation).toBeUndefined();
+      expect(failed.reason).toBe('refused');
+      expect('requestLocation' in failed).toBe(false);
     });
+  });
 
-    it('reports a browser without geolocation as final', async () => {
+  describe('unsupported environment', () => {
+    it('reports a browser without geolocation as unsupported, not refused', async () => {
       stubNavigator({
         permissions: grantedPermissions(),
         geolocation: undefined,
@@ -316,13 +319,32 @@ describe('useLocalWeather', () => {
       }
 
       expect(result.current.permission).toBe('unsupported');
-      expect(result.current.recoverable).toBe(false);
-      expect(result.current.requestLocation).toBeUndefined();
+      // The visitor refused nothing, so nothing downstream may treat this as
+      // a decision the visitor made.
+      expect(result.current.reason).toBe('unsupported');
+      expect(result.current.message).toBe('Local weather is unavailable.');
       expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('offers no retry, because there is nothing left to ask', async () => {
+      stubNavigator({
+        permissions: grantedPermissions(),
+        geolocation: undefined,
+      });
+
+      const { result } = renderHook(() => useLocalWeather({ enabled: true }));
+
+      await waitFor(() => expect(result.current.status).toBe('error'));
+
+      if (result.current.status !== 'error') {
+        throw new Error('Expected an error state.');
+      }
+
+      expect('requestLocation' in result.current).toBe(false);
     });
   });
 
-  describe('recoverable failures', () => {
+  describe('transient failures', () => {
     it('offers a retry when the forecast request fails', async () => {
       stubNavigator({
         permissions: grantedPermissions(),
@@ -344,7 +366,12 @@ describe('useLocalWeather', () => {
       }
 
       expect(result.current.message).toBe('Local weather is unavailable.');
-      expect(result.current.recoverable).toBe(true);
+      expect(result.current.reason).toBe('transient');
+
+      if (result.current.reason !== 'transient') {
+        throw new Error('Expected a transient failure.');
+      }
+
       expect(result.current.requestLocation).toBeTypeOf('function');
     });
 
@@ -362,7 +389,12 @@ describe('useLocalWeather', () => {
         throw new Error('Expected an error state.');
       }
 
-      expect(result.current.recoverable).toBe(true);
+      expect(result.current.reason).toBe('transient');
+
+      if (result.current.reason !== 'transient') {
+        throw new Error('Expected a transient failure.');
+      }
+
       expect(result.current.requestLocation).toBeTypeOf('function');
     });
 
@@ -392,7 +424,10 @@ describe('useLocalWeather', () => {
         throw new Error('Expected an error state.');
       }
 
-      const retry = result.current.requestLocation;
+      const retry =
+        result.current.reason === 'transient'
+          ? result.current.requestLocation
+          : undefined;
 
       if (!retry) {
         throw new Error('Expected a retry callback.');
@@ -407,24 +442,193 @@ describe('useLocalWeather', () => {
     });
   });
 
+  describe('callbacks that outlive their effect', () => {
+    function promptPermissions() {
+      return {
+        query: vi.fn().mockResolvedValue(createPermissionStatus('prompt')),
+      };
+    }
+
+    function renderToggleable() {
+      return renderHook(
+        ({ enabled }: { enabled: boolean }) => useLocalWeather({ enabled }),
+        { initialProps: { enabled: true } },
+      );
+    }
+
+    async function capturePromptRequest(result: {
+      current: ReturnType<typeof useLocalWeather>;
+    }) {
+      await waitFor(() => expect(result.current.status).toBe('prompt'));
+
+      if (result.current.status !== 'prompt') {
+        throw new Error('Expected a prompt state.');
+      }
+
+      return result.current.requestLocation;
+    }
+
+    it('does not strand the feed in loading after it is disabled', async () => {
+      const getCurrentPosition = positionAt(OSLO);
+
+      stubNavigator({
+        permissions: promptPermissions(),
+        geolocation: { getCurrentPosition },
+      });
+      resolveForecast();
+
+      const { result, rerender } = renderToggleable();
+      const captured = await capturePromptRequest(result);
+
+      rerender({ enabled: false });
+
+      await waitFor(() =>
+        expect(result.current.status).toBe('checking-permission'),
+      );
+
+      act(() => captured());
+      await drainPendingWork();
+
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+      expect(result.current.status).toBe('checking-permission');
+    });
+
+    it('does not ask for a location after the hook unmounts', async () => {
+      const getCurrentPosition = positionAt(OSLO);
+
+      stubNavigator({
+        permissions: promptPermissions(),
+        geolocation: { getCurrentPosition },
+      });
+      resolveForecast();
+
+      const { result, unmount } = renderToggleable();
+      const captured = await capturePromptRequest(result);
+
+      unmount();
+
+      act(() => captured());
+      await drainPendingWork();
+
+      expect(getCurrentPosition).not.toHaveBeenCalled();
+      expect(result.current.status).toBe('prompt');
+    });
+
+    it('drives the current request after the feed is enabled again', async () => {
+      const getCurrentPosition = positionAt(OSLO);
+
+      stubNavigator({
+        permissions: promptPermissions(),
+        geolocation: { getCurrentPosition },
+      });
+      resolveForecast();
+
+      const { result, rerender } = renderToggleable();
+      const captured = await capturePromptRequest(result);
+
+      rerender({ enabled: false });
+      await waitFor(() =>
+        expect(result.current.status).toBe('checking-permission'),
+      );
+
+      rerender({ enabled: true });
+      await waitFor(() => expect(result.current.status).toBe('prompt'));
+
+      act(() => captured());
+
+      await waitFor(() => expect(result.current.status).toBe('success'));
+
+      expect(getCurrentPosition).toHaveBeenCalledOnce();
+    });
+
+    it('withdraws a retry handed out before the feed was disabled', async () => {
+      stubNavigator({
+        permissions: grantedPermissions(),
+        geolocation: { getCurrentPosition: positionError(2) },
+      });
+
+      const { result, rerender } = renderToggleable();
+
+      await waitFor(() => expect(result.current.status).toBe('error'));
+
+      if (result.current.status !== 'error') {
+        throw new Error('Expected an error state.');
+      }
+
+      if (result.current.reason !== 'transient') {
+        throw new Error('Expected a transient failure.');
+      }
+
+      const retry = result.current.requestLocation;
+
+      rerender({ enabled: false });
+      await waitFor(() =>
+        expect(result.current.status).toBe('checking-permission'),
+      );
+
+      act(() => retry());
+      await drainPendingWork();
+
+      expect(result.current.status).toBe('checking-permission');
+    });
+  });
+
   describe('bounded requests', () => {
-    let pendingSignals: AbortSignal[] = [];
+    type ForecastRequest = {
+      signal: AbortSignal;
+      timeoutId: ReturnType<typeof setTimeout>;
+    };
+
+    let forecastRequests: ForecastRequest[] = [];
     let setTimeoutSpy: MockInstance;
     let clearTimeoutSpy: MockInstance;
+
+    /**
+     * Records the timer each forecast request carries, then answers with the
+     * supplied response.
+     *
+     * The hook schedules the forecast timeout and calls `fetch` in the same
+     * synchronous step, so the timer scheduled most recently when a request
+     * starts is that request's own timer. Identifying it this way ties the
+     * timer to the request that owns it. Searching the scheduled timers for
+     * a ten second delay would not: the geolocation bound is also ten
+     * seconds, and a second forecast makes "the first ten second timer"
+     * ambiguous on its own terms.
+     */
+    function recordForecast(
+      respond: (signal: AbortSignal) => Promise<Response>,
+    ) {
+      vi.mocked(fetch).mockImplementation(
+        (_input: unknown, init?: RequestInit) => {
+          const signal = init?.signal;
+
+          if (!signal) {
+            throw new Error('The forecast request carried no abort signal.');
+          }
+
+          const scheduled = setTimeoutSpy.mock.results.at(-1);
+
+          if (!scheduled) {
+            throw new Error(
+              'The forecast request started without scheduling a timer.',
+            );
+          }
+
+          forecastRequests.push({ signal, timeoutId: scheduled.value });
+
+          return respond(signal);
+        },
+      );
+    }
 
     /**
      * A forecast request that never answers on its own, so the only thing
      * that can end it is the hook's own timeout or its cleanup.
      */
     function stubUnansweredForecast() {
-      vi.mocked(fetch).mockImplementation(
-        (_input: unknown, init?: RequestInit) =>
+      recordForecast(
+        (signal) =>
           new Promise<Response>((_resolve, reject) => {
-            const signal = init?.signal;
-
-            if (!signal) return;
-
-            pendingSignals.push(signal);
             signal.addEventListener('abort', () => {
               reject(new DOMException('Aborted.', 'AbortError'));
             });
@@ -432,31 +636,22 @@ describe('useLocalWeather', () => {
       );
     }
 
-    /** The identifier of the timer the hook set for the forecast request. */
-    function forecastTimeoutId() {
-      const index = setTimeoutSpy.mock.calls.findIndex(
-        (call) => call[1] === FORECAST_TIMEOUT_MS,
+    function stubRecordedForecast() {
+      recordForecast(
+        async () =>
+          ({ ok: true, json: async () => createForecast() }) as Response,
       );
-
-      if (index === -1) {
-        throw new Error('No forecast timeout was scheduled.');
-      }
-
-      return setTimeoutSpy.mock.results[index].value;
     }
 
-    async function settleFakeTimers(milliseconds = 0) {
+    /** Advances the fake clock inside `act`, without waiting for anything. */
+    async function advanceFakeClock(milliseconds: number) {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(milliseconds);
-
-        for (let turn = 0; turn < 10; turn += 1) {
-          await Promise.resolve();
-        }
       });
     }
 
     beforeEach(() => {
-      pendingSignals = [];
+      forecastRequests = [];
       vi.useFakeTimers();
       setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
       clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
@@ -477,22 +672,27 @@ describe('useLocalWeather', () => {
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await settleFakeTimers();
+      await waitForCondition(
+        'the forecast request to start',
+        () => forecastRequests.length === 1,
+      );
 
       expect(result.current.status).toBe('loading');
-      expect(pendingSignals).toHaveLength(1);
-      expect(pendingSignals[0].aborted).toBe(false);
+      expect(forecastRequests[0].signal.aborted).toBe(false);
 
-      await settleFakeTimers(FORECAST_TIMEOUT_MS);
+      await advanceFakeClock(FORECAST_TIMEOUT_MS);
+      await waitForCondition(
+        'the abandoned forecast to be reported',
+        () => result.current.status === 'error',
+      );
 
-      expect(pendingSignals[0].aborted).toBe(true);
-      expect(result.current.status).toBe('error');
+      expect(forecastRequests[0].signal.aborted).toBe(true);
 
       if (result.current.status !== 'error') {
         throw new Error('Expected an error state.');
       }
 
-      expect(result.current.recoverable).toBe(true);
+      expect(result.current.reason).toBe('transient');
     });
 
     it('clears the forecast timer once the forecast answers', async () => {
@@ -500,14 +700,18 @@ describe('useLocalWeather', () => {
         permissions: grantedPermissions(),
         geolocation: { getCurrentPosition: positionAt(OSLO) },
       });
-      resolveForecast();
+      stubRecordedForecast();
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await settleFakeTimers();
+      await waitForCondition(
+        'the forecast to arrive',
+        () => result.current.status === 'success',
+      );
 
-      expect(result.current.status).toBe('success');
-      expect(clearTimeoutSpy).toHaveBeenCalledWith(forecastTimeoutId());
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(
+        forecastRequests[0].timeoutId,
+      );
     });
 
     it('abandons a forecast in flight when the permission changes', async () => {
@@ -521,31 +725,38 @@ describe('useLocalWeather', () => {
 
       const { result } = renderHook(() => useLocalWeather({ enabled: true }));
 
-      await settleFakeTimers();
+      await waitForCondition(
+        'the forecast request to start',
+        () => forecastRequests.length === 1,
+      );
 
-      const timeoutId = forecastTimeoutId();
-
-      expect(pendingSignals).toHaveLength(1);
-      expect(pendingSignals[0].aborted).toBe(false);
+      expect(forecastRequests[0].signal.aborted).toBe(false);
 
       const [, handlePermissionChange] = status.addEventListener.mock
         .calls[0] as [string, () => void];
 
       status.state = 'denied';
       act(() => handlePermissionChange());
-      await settleFakeTimers();
 
-      expect(pendingSignals[0].aborted).toBe(true);
-      expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutId);
-      expect(result.current.status).toBe('error');
+      await waitForCondition(
+        'the refusal to be reported',
+        () => result.current.status === 'error',
+      );
+
+      expect(forecastRequests[0].signal.aborted).toBe(true);
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(
+        forecastRequests[0].timeoutId,
+      );
+
+      // The abandoned request settles as a rejection, and it must not write
+      // its answer over the one the permission change produced.
+      await drainPendingWork();
 
       if (result.current.status !== 'error') {
         throw new Error('Expected an error state.');
       }
 
-      // The abandoned request settles as a rejection, and it must not write
-      // its answer over the one the permission change produced.
-      expect(result.current.recoverable).toBe(false);
+      expect(result.current.reason).toBe('refused');
     });
 
     it('aborts the forecast and clears its timer when unmounted', async () => {
@@ -555,21 +766,31 @@ describe('useLocalWeather', () => {
       });
       stubUnansweredForecast();
 
-      const { unmount } = renderHook(() => useLocalWeather({ enabled: true }));
+      const { result, unmount } = renderHook(() =>
+        useLocalWeather({ enabled: true }),
+      );
 
-      await settleFakeTimers();
+      await waitForCondition(
+        'the forecast request to start',
+        () => forecastRequests.length === 1,
+      );
 
-      const timeoutId = forecastTimeoutId();
-
-      expect(pendingSignals[0].aborted).toBe(false);
+      expect(forecastRequests[0].signal.aborted).toBe(false);
 
       unmount();
 
-      expect(pendingSignals[0].aborted).toBe(true);
-      expect(clearTimeoutSpy).toHaveBeenCalledWith(timeoutId);
+      expect(forecastRequests[0].signal.aborted).toBe(true);
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(
+        forecastRequests[0].timeoutId,
+      );
 
-      // Nothing is left to fire, so the abandoned request cannot report.
-      await settleFakeTimers(FORECAST_TIMEOUT_MS);
+      // Nothing is left to fire, so the abandoned request cannot report and
+      // the last state the hook published stands.
+      await advanceFakeClock(FORECAST_TIMEOUT_MS);
+      await drainPendingWork();
+
+      expect(result.current.status).toBe('loading');
+      expect(fetch).toHaveBeenCalledOnce();
     });
   });
 });

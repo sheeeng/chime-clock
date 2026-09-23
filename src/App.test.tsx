@@ -695,7 +695,7 @@ describe('App', () => {
       expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
     });
 
-    it('returns to None and saves it when the browser has no geolocation', async () => {
+    it('returns to None and keeps a saved Dynamic when the browser cannot locate', async () => {
       window.localStorage.setItem(BACKGROUND_STORAGE_KEY, 'dynamic');
       stubGeolocation({ permission: 'granted', supported: false });
       render(<App />);
@@ -703,7 +703,26 @@ describe('App', () => {
       await waitForText(UNAVAILABLE_MESSAGE);
 
       expect(optionRadio('Background', 'None')).toBeChecked();
-      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe('none');
+      expect(screen.queryByTestId('seasonal-scene')).not.toBeInTheDocument();
+      // An environment without geolocation decided nothing on the visitor's
+      // behalf, so the wish it cannot grant is not erased.
+      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
+        'dynamic',
+      );
+    });
+
+    it('keeps a chosen Dynamic when the browser cannot locate', async () => {
+      stubGeolocation({ permission: 'prompt', supported: false });
+      render(<App />);
+      await waitForText(ENABLE_LABEL);
+
+      fireEvent.click(optionRadio('Background', 'Dynamic'));
+      await waitForText(UNAVAILABLE_MESSAGE);
+
+      expect(optionRadio('Background', 'None')).toBeChecked();
+      expect(window.localStorage.getItem(BACKGROUND_STORAGE_KEY)).toBe(
+        'dynamic',
+      );
     });
 
     it('keeps a saved Dynamic when a forecast request fails', async () => {

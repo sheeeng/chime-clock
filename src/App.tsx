@@ -108,11 +108,16 @@ function nextChimeAnimation(strikes: number): ChimeAnimation {
 /**
  * Returns the callback that asks the browser for a location, when the weather
  * feed is in a state that offers one: a prompt it has not yet raised, or a
- * failure that asking again could get past. A durable refusal offers nothing,
- * because the browser has already given its final answer.
+ * failure that asking again could get past. A refusal and an environment
+ * without geolocation offer nothing, because neither has anything left to
+ * ask.
  */
 function getLocationRequest(state: LocalWeatherState) {
-  if (state.status === 'prompt' || state.status === 'error') {
+  if (state.status === 'prompt') {
+    return state.requestLocation;
+  }
+
+  if (state.status === 'error' && state.reason === 'transient') {
     return state.requestLocation;
   }
 
@@ -165,8 +170,8 @@ export default function App() {
   const requestLocation = getLocationRequest(weatherState);
   // `null` while the feed is not reporting an error, so the recovery effect
   // reads one value rather than reaching into a union from inside its body.
-  const weatherErrorIsRecoverable =
-    weatherState.status === 'error' ? weatherState.recoverable : null;
+  const weatherFailureReason =
+    weatherState.status === 'error' ? weatherState.reason : null;
   const activeSeason = resolveSeason(
     backgroundMode,
     weatherState.status === 'success' ? weatherState.season : null,
@@ -317,22 +322,23 @@ export default function App() {
   // A dynamic background with no reachable location has nothing to draw, so
   // the live selection returns to `None`.
   //
-  // Only a durable refusal is saved. A refused permission and a browser
-  // without geolocation will answer the same way on the next visit, so
-  // writing `none` records what the browser has already decided. A position
-  // that could not be fixed and a forecast that did not arrive are neither
-  // durable nor the visitor's doing, so a saved `Dynamic` survives them and
-  // is honoured again on the next visit.
+  // Only a refusal is saved. The visitor told the browser no, so a saved
+  // `Dynamic` no longer describes what the visitor wants and writing `none`
+  // records the decision they already made. The other two failures are not
+  // the visitor's doing: a browser without geolocation decided nothing, and
+  // neither did a position that could not be fixed or a forecast that did
+  // not arrive. A saved `Dynamic` survives all of those and is honoured
+  // again on the next visit.
   useEffect(() => {
     if (backgroundMode !== 'dynamic') return;
-    if (weatherErrorIsRecoverable === null) return;
+    if (weatherFailureReason === null) return;
 
     setBackgroundMode('none');
 
-    if (!weatherErrorIsRecoverable) {
+    if (weatherFailureReason === 'refused') {
       writeBackgroundPreference(storage, 'none');
     }
-  }, [backgroundMode, storage, weatherErrorIsRecoverable]);
+  }, [backgroundMode, storage, weatherFailureReason]);
 
   const initAudio = () => {
     if (!audioCtxRef.current) {
@@ -385,7 +391,7 @@ export default function App() {
     writeBackgroundPreference(storage, mode);
 
     // Only `Dynamic` needs a location. A manual season never asks for one.
-    // After a recoverable failure the feed hands back a way to ask again, so
+    // After a transient failure the feed hands back a way to ask again, so
     // choosing `Dynamic` a second time is a real retry rather than a
     // selection that sits there.
     if (mode === 'dynamic') requestLocation?.();

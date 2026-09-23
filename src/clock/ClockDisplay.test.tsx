@@ -9,11 +9,10 @@ const threeClock = vi.hoisted(() => {
     release = resolve;
   });
 
-  return { gate, release, imported: vi.fn() };
+  return { gate, release };
 });
 
 vi.mock('./ThreeClock', async () => {
-  threeClock.imported();
   await threeClock.gate;
 
   return {
@@ -65,10 +64,10 @@ describe('ClockDisplay', () => {
   });
 
   describe('digital mode', () => {
-    beforeEach(() => {
-      threeClock.imported.mockClear();
-    });
-
+    // Whether the lazy chunk stays unloaded is not asserted here. A module is
+    // imported at most once per test file, so a case sharing this file with
+    // the analog and cuckoo cases can only answer honestly while it runs
+    // first. `src/App.lazyClock.test.tsx` holds that guard on its own.
     it('renders the formatted local time', () => {
       render(<ClockDisplay mode="digital" time={time} chimeAnimation={null} />);
 
@@ -78,15 +77,6 @@ describe('ClockDisplay', () => {
       expect(display).toHaveTextContent(hour);
       expect(display).toHaveTextContent(minute);
       expect(display).toHaveTextContent(second);
-    });
-
-    it('never loads the Three.js clock module', async () => {
-      render(<ClockDisplay mode="digital" time={time} chimeAnimation={null} />);
-
-      await Promise.resolve();
-
-      expect(threeClock.imported).not.toHaveBeenCalled();
-      expect(screen.queryByTestId('three-clock')).not.toBeInTheDocument();
     });
   });
 

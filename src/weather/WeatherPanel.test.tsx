@@ -103,7 +103,7 @@ describe('WeatherPanel', () => {
           status: 'error',
           permission: 'denied',
           message: 'Local weather is unavailable.',
-          recoverable: false,
+          reason: 'refused',
         }}
       />,
     );

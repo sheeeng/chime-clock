@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getSeasonFromForecast,
   parseWeather,
@@ -10,6 +10,29 @@ type UseLocalWeatherOptions = {
   enabled: boolean;
 };
 
+type WeatherErrorBase = {
+  status: 'error';
+  permission: PermissionState | 'unsupported';
+  message: string;
+};
+
+/**
+ * Why the feed has nothing to show. Three outcomes look alike on screen and
+ * mean different things to anything that stores a preference.
+ *
+ * - `refused`: the visitor told the browser no. The browser will answer the
+ *   same way until the visitor changes it, and the answer is the visitor's
+ *   own decision, so a stored wish for local weather no longer describes
+ *   what the visitor wants.
+ * - `unsupported`: the environment has no geolocation at all. There is
+ *   nothing to ask and nothing to retry, and the visitor decided nothing, so
+ *   a stored wish still describes what the visitor wants and must survive.
+ * - `transient`: the position or the forecast did not arrive this time and
+ *   may arrive the next. `requestLocation` asks again.
+ *
+ * A retry exists exactly for `transient`, and the type says so rather than
+ * leaving an optional callback that a caller has to test for.
+ */
 export type LocalWeatherState =
   | { status: 'checking-permission'; permission: null }
   | { status: 'prompt'; permission: 'prompt'; requestLocation: () => void }
@@ -21,20 +44,8 @@ export type LocalWeatherState =
       weather: WeatherReading;
       season: SeasonId;
     }
-  | {
-      status: 'error';
-      permission: PermissionState | 'unsupported';
-      message: string;
-      /**
-       * Whether asking again could answer differently. A refused permission
-       * and a browser without geolocation answer the same way every time. A
-       * position the device could not fix and a forecast that did not arrive
-       * may well answer differently a minute later.
-       */
-      recoverable: boolean;
-      /** Present exactly when `recoverable` is true. */
-      requestLocation?: () => void;
-    };
+  | (WeatherErrorBase & { reason: 'refused' | 'unsupported' })
+  | (WeatherErrorBase & { reason: 'transient'; requestLocation: () => void });
 
 const UNAVAILABLE_MESSAGE = 'Local weather is unavailable.';
 
@@ -70,6 +81,22 @@ export function useLocalWeather(
     permission: null,
   });
 
+  // The effect owns the request machinery, and every disable, unmount, or
+  // dependency change replaces it. A function the effect creates therefore
+  // outlives the effect as soon as a caller holds it in state, and calling
+  // one of those would set `loading` on work that the cleanup has already
+  // abandoned, leaving the hook loading something nobody is fetching.
+  //
+  // State carries this callback instead. It has one identity for the life of
+  // the hook and routes to whatever request the active effect installed
+  // here. After a cleanup the slot is empty and the callback does nothing;
+  // after a replacement it drives the new request. Either way a callback
+  // captured earlier can never reach an abandoned effect.
+  const activeRequestRef = useRef<(() => void) | null>(null);
+  const requestLocation = useCallback(() => {
+    activeRequestRef.current?.();
+  }, []);
+
   useEffect(() => {
     if (!enabled) {
       setState({ status: 'checking-permission', permission: null });
@@ -102,21 +129,30 @@ export function useLocalWeather(
       activeRequest = null;
     }
 
-    function failDurably(permission: PermissionState | 'unsupported') {
+    function failRefused() {
       setState({
         status: 'error',
-        permission,
+        permission: 'denied',
         message: UNAVAILABLE_MESSAGE,
-        recoverable: false,
+        reason: 'refused',
       });
     }
 
-    function failRecoverably(permission: PermissionState | 'unsupported') {
+    function failUnsupported() {
+      setState({
+        status: 'error',
+        permission: 'unsupported',
+        message: UNAVAILABLE_MESSAGE,
+        reason: 'unsupported',
+      });
+    }
+
+    function failTransiently(permission: PermissionState | 'unsupported') {
       setState({
         status: 'error',
         permission,
         message: UNAVAILABLE_MESSAGE,
-        recoverable: true,
+        reason: 'transient',
         requestLocation,
       });
     }
@@ -173,7 +209,7 @@ export function useLocalWeather(
 
         // A forecast that timed out, was refused, or arrived malformed may
         // arrive intact on the next attempt, so the visitor keeps a way back.
-        failRecoverably('granted');
+        failTransiently('granted');
       } finally {
         clearTimeout(timeoutId);
 
@@ -183,13 +219,16 @@ export function useLocalWeather(
       }
     }
 
-    function requestLocation() {
+    function startLocationRequest() {
       serial += 1;
       const requestSerial = serial;
       cancelActiveRequest();
 
       if (!navigator.geolocation) {
-        failDurably('unsupported');
+        // The environment cannot locate anything. Nothing was refused and
+        // nothing can be retried, so callers keep whatever the visitor
+        // asked for and simply have nothing to draw.
+        failUnsupported();
         return;
       }
 
@@ -209,13 +248,13 @@ export function useLocalWeather(
           if (!isCurrent(requestSerial)) return;
 
           if (error.code === PERMISSION_DENIED) {
-            failDurably('denied');
+            failRefused();
             return;
           }
 
           // The device could not fix a position in time. Asking again is
           // worth doing, so the caller is handed the way to do it.
-          failRecoverably(lastPermission);
+          failTransiently(lastPermission);
         },
         {
           timeout: GEOLOCATION_TIMEOUT_MS,
@@ -230,7 +269,7 @@ export function useLocalWeather(
       lastPermission = permissionState;
 
       if (permissionState === 'granted') {
-        requestLocation();
+        startLocationRequest();
         return;
       }
 
@@ -240,7 +279,7 @@ export function useLocalWeather(
       cancelActiveRequest();
 
       if (permissionState === 'denied') {
-        failDurably('denied');
+        failRefused();
         return;
       }
 
@@ -251,10 +290,19 @@ export function useLocalWeather(
       cancelled = true;
       cancelActiveRequest();
 
+      // Only this effect's own installation is withdrawn. React runs a
+      // cleanup before the next setup, so the check merely refuses to
+      // remove a newer request that has already taken the slot.
+      if (activeRequestRef.current === startLocationRequest) {
+        activeRequestRef.current = null;
+      }
+
       if (permissionStatus && handlePermissionChange) {
         permissionStatus.removeEventListener('change', handlePermissionChange);
       }
     }
+
+    activeRequestRef.current = startLocationRequest;
 
     setState({ status: 'checking-permission', permission: null });
 
@@ -281,7 +329,7 @@ export function useLocalWeather(
       });
 
     return cleanUp;
-  }, [enabled]);
+  }, [enabled, requestLocation]);
 
   return state;
 }
