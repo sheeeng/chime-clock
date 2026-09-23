@@ -12,7 +12,9 @@ export type ThreeClockMode = Exclude<ClockMode, 'digital'>;
  * from the next, and the strike count sets how many bird cycles run.
  *
  * Identifiers are unique and strictly increasing for each chime start during
- * one page session, and every start or restart takes a fresh one.
+ * one page session, and every start or restart takes a fresh one, drawn from
+ * an incrementing counter rather than from wall clock or network corrected
+ * time. A given identifier carries one strike count for its whole life.
  * `chimeAnimationSession.ts` documents and enforces the full contract.
  *
  * This type lives here rather than in the Three.js module so that a consumer

@@ -8,11 +8,16 @@ import {
 
 describe('observeChimeAnimation', () => {
   let now = 0;
+  let warn: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     now = 0;
     resetChimeAnimationSession();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
+    // Refusing a stale identifier or a mismatched strike count warns in
+    // development. Silencing it here keeps every other case's test output
+    // clean; the warning tests below read this same spy.
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -56,6 +61,62 @@ describe('observeChimeAnimation', () => {
 
     expect(observeChimeAnimation({ id: 7, strikes: 3 })).toBe(1_000);
     expect(observeChimeAnimation({ id: 8, strikes: 3 })).toBe(4_000);
+  });
+
+  it('refuses a repeated identifier with a different strike count', () => {
+    now = 1_000;
+    observeChimeAnimation({ id: 7, strikes: 3 });
+    now = 4_000;
+
+    expect(observeChimeAnimation({ id: 7, strikes: 4 })).toBeNull();
+  });
+
+  it('keeps the recorded strike count when a mismatched count is refused', () => {
+    now = 1_000;
+    observeChimeAnimation({ id: 7, strikes: 3 });
+    now = 4_000;
+    observeChimeAnimation({ id: 7, strikes: 4 });
+
+    expect(observeChimeAnimation({ id: 7, strikes: 3 })).toBe(1_000);
+  });
+
+  it('warns in development when it refuses a stale identifier', () => {
+    now = 1_000;
+    observeChimeAnimation({ id: 7, strikes: 3 });
+    now = 4_000;
+
+    observeChimeAnimation({ id: 6, strikes: 3 });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('6');
+    expect(warn.mock.calls[0][0]).toContain('7');
+  });
+
+  it('warns in development when it refuses a mismatched strike count', () => {
+    observeChimeAnimation({ id: 7, strikes: 3 });
+
+    observeChimeAnimation({ id: 7, strikes: 4 });
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('4');
+    expect(warn.mock.calls[0][0]).toContain('3');
+  });
+
+  it('does not warn in production for either refusal', () => {
+    const originalDev = import.meta.env.DEV;
+    import.meta.env.DEV = false;
+
+    try {
+      now = 1_000;
+      observeChimeAnimation({ id: 7, strikes: 3 });
+      now = 4_000;
+      observeChimeAnimation({ id: 6, strikes: 3 });
+      observeChimeAnimation({ id: 7, strikes: 4 });
+    } finally {
+      import.meta.env.DEV = originalDev;
+    }
+
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('refuses an absent sequence without disturbing the record', () => {
@@ -109,6 +170,10 @@ describe('useChimeAnimationSession', () => {
     now = 0;
     resetChimeAnimationSession();
     vi.spyOn(performance, 'now').mockImplementation(() => now);
+    // A refused identifier or strike count warns in development. These
+    // tests assert on the resolved sequence, not on the warning, so the
+    // warning itself is silenced here.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -194,7 +259,7 @@ describe('useChimeAnimationSession', () => {
     });
   });
 
-  it('holds nothing for an identifier below the record', () => {
+  it('keeps the running sequence when a later identifier is stale', () => {
     type Props = { id: number; strikes: number } | null;
 
     const { result, rerender } = renderHook(
@@ -205,7 +270,32 @@ describe('useChimeAnimationSession', () => {
     now = 7_000;
     rerender({ id: 8, strikes: 4 });
 
-    expect(result.current.current).toBeNull();
+    // The stale identifier is refused, and refusing it is not a withdrawal:
+    // the sequence this consumer already resolved for identifier 9 keeps
+    // running at its original start time rather than being rewound.
+    expect(result.current.current).toEqual({
+      strikes: 4,
+      startedAtMilliseconds: 0,
+    });
+  });
+
+  it('keeps the running sequence when a repeated identifier changes strikes', () => {
+    type Props = { id: number; strikes: number } | null;
+
+    const { result, rerender } = renderHook(
+      (animation: Props) => useChimeAnimationSession(animation),
+      { initialProps: { id: 1, strikes: 4 } as Props },
+    );
+
+    now = 7_000;
+    rerender({ id: 1, strikes: 9 });
+
+    // The mismatched strike count is refused for the same reason: it does
+    // not silently change how long the running sequence plays for.
+    expect(result.current.current).toEqual({
+      strikes: 4,
+      startedAtMilliseconds: 0,
+    });
   });
 
   it('keeps the original start time when a later consumer mounts', () => {

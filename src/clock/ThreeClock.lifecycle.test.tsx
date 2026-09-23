@@ -1,7 +1,10 @@
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
-import ThreeClock, { CUCKOO_DOOR_OPEN_RADIANS } from './ThreeClock';
+import ThreeClock, {
+  CUCKOO_DOOR_OPEN_RADIANS,
+  getCuckooAnimation,
+} from './ThreeClock';
 import { ClockDisplay } from './ClockDisplay';
 import { resetChimeAnimationSession } from './chimeAnimationSession';
 
@@ -168,6 +171,9 @@ describe('ThreeClock lifecycle', () => {
     resetChimeAnimationSession();
 
     vi.spyOn(performance, 'now').mockImplementation(() => now);
+    // A stale identifier or a mismatched strike count warns in development,
+    // and several cases below exercise that refusal on purpose.
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
 
     globalThis.requestAnimationFrame = (callback: FrameRequestCallback) => {
       const handle = nextFrameHandle;
@@ -463,7 +469,97 @@ describe('ThreeClock lifecycle', () => {
       expect(bird.visible).toBe(false);
     });
 
-    it('ignores an identifier below the one already recorded', async () => {
+    it('does not rewind or restart a running sequence when a stale identifier arrives', async () => {
+      const chimeAnimation = { id: 9, strikes: 3 };
+      const view = render(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={chimeAnimation}
+        />,
+      );
+      await waitForReadyClock();
+
+      // The sequence is still mid-flight through its second strike when the
+      // stale identifier arrives, unlike a stale identifier that shows up
+      // only after every strike has already finished.
+      now = 1_125;
+      stepFrame();
+
+      const runningState = getCuckooAnimation(now, chimeAnimation.strikes);
+      expect(runningState.active).toBe(true);
+      expect(cuckooParts().doorPivot.rotation.y).toBeCloseTo(
+        runningState.doorRotation,
+      );
+      expect(cuckooParts().bird.visible).toBe(true);
+
+      view.rerender(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 8, strikes: 3 }}
+        />,
+      );
+      stepFrame();
+
+      // Refusing the stale identifier is not a rewind: the door and the bird
+      // stay exactly where the sequence that is running already placed them.
+      expect(cuckooParts().doorPivot.rotation.y).toBeCloseTo(
+        runningState.doorRotation,
+      );
+      expect(cuckooParts().bird.visible).toBe(true);
+
+      now = 2_125;
+      stepFrame();
+
+      // Refusing the stale identifier is also not a restart: the third
+      // strike is timed from the sequence's true origin at zero, not from
+      // the moment the stale identifier arrived.
+      const laterState = getCuckooAnimation(now, chimeAnimation.strikes);
+      expect(laterState.active).toBe(true);
+      expect(cuckooParts().doorPivot.rotation.y).toBeCloseTo(
+        laterState.doorRotation,
+      );
+      expect(cuckooParts().bird.visible).toBe(laterState.birdOffset > 0);
+    });
+
+    it('does not extend a running sequence when a repeated identifier changes its strike count', async () => {
+      const view = render(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 1, strikes: 1 }}
+        />,
+      );
+      await waitForReadyClock();
+
+      now = 125;
+      stepFrame();
+      expect(cuckooParts().doorPivot.rotation.y).toBeGreaterThan(0);
+
+      // The same identifier returns claiming five strikes instead of one.
+      // Accepting the new count would stretch the sequence from one second
+      // to five, so it must be refused.
+      view.rerender(
+        <ThreeClock
+          mode="cuckoo"
+          time={time}
+          chimeAnimation={{ id: 1, strikes: 5 }}
+        />,
+      );
+
+      // The single strike recorded for identifier 1 has already run out by
+      // now, which it would not have if the new count of five had won.
+      now = 1_500;
+      stepFrame();
+
+      const { doorPivot, bird } = cuckooParts();
+
+      expect(doorPivot.rotation.y).toBe(0);
+      expect(bird.visible).toBe(false);
+    });
+
+    it('ignores a stale identifier after every strike has already finished', async () => {
       const view = render(
         <ThreeClock
           mode="cuckoo"
