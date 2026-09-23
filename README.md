@@ -161,13 +161,6 @@ let first_forecast = $data.properties.timeseries.0
 }
 ```
 
-## Task 10 Report
-
-- Documented the weather card label, MET Norway attribution order, and retry
-  behavior in the local weather section.
-- Kept the existing reference links and the Nushell debugging example in
-  place.
-
 ## Lazy Loading and Self-Hosted Assets
 
 Every three-dimensional model, every model texture, and the seasonal scene's
