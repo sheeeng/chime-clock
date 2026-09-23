@@ -55,6 +55,8 @@ jobs:
 
       - name: Build Vercel Output
         run: vercel build --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VITE_GIT_COMMIT_SHA_8_CHAR: ${{ steps.set-build-information.outputs.commit_sha_8_char }}
 
       - name: Deploy Preview to Vercel
         run: vercel deploy --prebuilt --token="${{ secrets.VERCEL_TOKEN }}"
@@ -98,6 +100,8 @@ jobs:
 
       - name: Build Vercel Output
         run: vercel build --prod --token="${{ secrets.VERCEL_TOKEN }}"
+        env:
+          VITE_GIT_COMMIT_SHA_8_CHAR: ${{ steps.set-build-information.outputs.commit_sha_8_char }}
 
       - name: Deploy Live Site to Vercel
         run: vercel deploy --prebuilt --prod --token="${{ secrets.VERCEL_TOKEN }}"
