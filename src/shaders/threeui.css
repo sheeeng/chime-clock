@@ -756,14 +756,6 @@ img.sunset-valley-fallback {
   opacity: 1;
 }
 
-@font-face {
-  font-family: "ThreeUI Fragment Mono";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("./fonts/fragment-mono.woff2") format("woff2");
-}
-
 .article-headings-component,
 .animated-top-dock-component,
 .typography-vortex-component {

@@ -2,7 +2,6 @@ import { execSync } from 'child_process';
 import { readFileSync } from 'node:fs';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
 import {defineConfig} from 'vite';
 
 if (!process.env.VITE_GIT_COMMIT_SHA_8_CHAR) {
@@ -35,7 +34,7 @@ export default defineConfig(() => {
     ],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': import.meta.dirname,
       },
     },
     server: {
