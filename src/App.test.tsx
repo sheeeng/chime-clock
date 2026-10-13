@@ -613,6 +613,22 @@ describe('App', () => {
   });
 
   describe('background and weather', () => {
+    it.each(['Autumn', 'Spring', 'Summer', 'Winter'])(
+      'keeps the digital clock readable over %s and restores the plain theme',
+      async (season) => {
+        render(<App />);
+        fireEvent.click(optionRadio('Background', season));
+
+        const clock = screen.getByTestId('digital-clock');
+        expect(clock).toHaveClass('bg-zinc-950/60', 'text-white');
+        expect(clock.querySelector('.font-mono')).not.toHaveClass('text-zinc-900');
+
+        fireEvent.click(optionRadio('Background', 'None'));
+        expect(clock).not.toHaveClass('bg-zinc-950/60');
+        expect(clock.querySelector('.font-mono')).toHaveClass('text-zinc-900');
+      },
+    );
+
     it('selects Dynamic before the weather request completes', () => {
       render(<App />);
 

@@ -11,6 +11,7 @@ export type ClockDisplayProps = {
   mode: ClockMode;
   time: Date;
   chimeAnimation: ChimeAnimation | null;
+  hasSeasonalBackground?: boolean;
 };
 
 const NumberTicker = ({ value }: { value: string }) => (
@@ -30,7 +31,9 @@ const NumberTicker = ({ value }: { value: string }) => (
   </div>
 );
 
-const Colon = () => (
+const Colon = ({ hasSeasonalBackground }: { hasSeasonalBackground: boolean }) => hasSeasonalBackground ? (
+  <span className="inline-block mx-0.5 md:mx-1 -translate-y-[0.05em] text-white">:</span>
+) : (
   <motion.span
     animate={{ opacity: [1, 0.2, 1] }}
     transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
@@ -40,7 +43,7 @@ const Colon = () => (
   </motion.span>
 );
 
-function DigitalClock({ time }: { time: Date }) {
+function DigitalClock({ time, hasSeasonalBackground }: { time: Date; hasSeasonalBackground: boolean }) {
   // Formatting time gracefully adapting to the user's local timezone & locale.
   const formatParts = new Intl.DateTimeFormat(undefined, {
     hour: '2-digit',
@@ -63,17 +66,17 @@ function DigitalClock({ time }: { time: Date }) {
   return (
     <div
       data-testid="digital-clock"
-      className="text-[14vw] sm:text-[12vw] md:text-[11vw] lg:text-[9rem] xl:text-[12rem] leading-none font-semibold tracking-tighter flex items-baseline justify-center gap-2 md:gap-4 w-full"
+      className={`text-[14vw] sm:text-[12vw] md:text-[11vw] lg:text-[9rem] xl:text-[12rem] leading-none font-semibold tracking-tighter flex items-baseline justify-center gap-2 md:gap-4 w-full ${hasSeasonalBackground ? 'rounded-3xl bg-zinc-950/60 py-6 text-white' : ''}`}
     >
-      <div className="flex items-center justify-center font-mono text-zinc-900 dark:text-white">
+      <div className={`flex items-center justify-center font-mono ${hasSeasonalBackground ? 'text-white' : 'text-zinc-900 dark:text-white'}`}>
         <NumberTicker value={hour} />
-        <Colon />
+        <Colon hasSeasonalBackground={hasSeasonalBackground} />
         <NumberTicker value={minute} />
-        <Colon />
+        <Colon hasSeasonalBackground={hasSeasonalBackground} />
         <NumberTicker value={second} />
       </div>
       {ampm && (
-        <span className="text-[5vw] sm:text-[4vw] md:text-[3.5vw] lg:text-5xl xl:text-6xl text-zinc-500 dark:text-zinc-600 font-semibold uppercase ml-1 md:ml-4">
+        <span className={`text-[5vw] sm:text-[4vw] md:text-[3.5vw] lg:text-5xl xl:text-6xl font-semibold uppercase ml-1 md:ml-4 ${hasSeasonalBackground ? 'text-white' : 'text-zinc-500 dark:text-zinc-600'}`}>
           {ampm}
         </span>
       )}
@@ -90,13 +93,14 @@ export function ClockDisplay({
   mode,
   time,
   chimeAnimation,
+  hasSeasonalBackground = false,
 }: ClockDisplayProps) {
   // Every mode records the sequence, so a chime that rings while the digital
   // or analog clock is on screen is already spent, rather than waiting to
   // play the moment the cuckoo appears.
   useChimeAnimationSession(chimeAnimation);
 
-  if (mode === 'digital') return <DigitalClock time={time} />;
+  if (mode === 'digital') return <DigitalClock time={time} hasSeasonalBackground={hasSeasonalBackground} />;
 
   return (
     <div className="relative w-full max-w-3xl aspect-[16/10]">

@@ -393,6 +393,7 @@ export default function App() {
         <div className="flex flex-col items-center w-full max-w-6xl mx-auto">
           <ClockDisplay
             chimeAnimation={chimeAnimation}
+            hasSeasonalBackground={hasSeasonalBackground}
             mode={clockMode}
             time={time}
           />
