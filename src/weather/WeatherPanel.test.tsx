@@ -102,12 +102,18 @@ describe('WeatherPanel', () => {
     ).toBeInTheDocument();
     expect(
       getByCompleteText(
-        'Forecast for September 22, 2026, at 12:00 UTC · MET Norway · Seasonal background by Three UI.',
+        'Forecast for September 22, 2026, at 12:00 UTC.',
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', { name: 'MET Norway' }),
     ).toHaveAttribute('href', 'https://api.met.no/');
+    expect(getByCompleteText('Obtained from MET Norway.')).toBeInTheDocument();
+    expect(getByCompleteText('Seasonal background by Three UI.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Three UI' })).toHaveAttribute(
+      'href',
+      'https://threeui.com/browse',
+    );
     expect(
       screen.queryByRole('list', { name: 'Current conditions' }),
     ).not.toBeInTheDocument();
@@ -125,7 +131,7 @@ describe('WeatherPanel', () => {
     );
 
     expect(
-      screen.queryByText(/Seasonal background by Three UI/),
+      screen.queryByRole('link', { name: 'Three UI' }),
     ).not.toBeInTheDocument();
   });
 
