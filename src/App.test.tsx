@@ -620,7 +620,8 @@ describe('App', () => {
         fireEvent.click(optionRadio('Background', season));
 
         const clock = screen.getByTestId('digital-clock');
-        expect(clock).toHaveClass('bg-zinc-950/60', 'text-white');
+        expect(clock).toHaveClass('text-white');
+        expect(clock).not.toHaveClass('bg-zinc-950/60', 'rounded-3xl');
         expect(clock.querySelector('.font-mono')).not.toHaveClass('text-zinc-900');
 
         fireEvent.click(optionRadio('Background', 'None'));

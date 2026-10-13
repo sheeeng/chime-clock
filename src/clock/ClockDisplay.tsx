@@ -66,7 +66,7 @@ function DigitalClock({ time, hasSeasonalBackground }: { time: Date; hasSeasonal
   return (
     <div
       data-testid="digital-clock"
-      className={`text-[14vw] sm:text-[12vw] md:text-[11vw] lg:text-[9rem] xl:text-[12rem] leading-none font-semibold tracking-tighter flex items-baseline justify-center gap-2 md:gap-4 w-full ${hasSeasonalBackground ? 'rounded-3xl bg-zinc-950/60 py-6 text-white' : ''}`}
+      className={`text-[14vw] sm:text-[12vw] md:text-[11vw] lg:text-[9rem] xl:text-[12rem] leading-none font-semibold tracking-tighter flex items-baseline justify-center gap-2 md:gap-4 w-full ${hasSeasonalBackground ? 'text-white [text-shadow:0_2px_4px_rgba(0,0,0,0.9),0_0_16px_rgba(0,0,0,0.6)]' : ''}`}
     >
       <div className={`flex items-center justify-center font-mono ${hasSeasonalBackground ? 'text-white' : 'text-zinc-900 dark:text-white'}`}>
         <NumberTicker value={hour} />
