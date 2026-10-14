@@ -107,7 +107,7 @@ describe('ClockDisplay', () => {
   });
 
   describe('cuckoo mode', () => {
-    it('passes the chime animation to the model', async () => {
+    it('renders the birdhouse as an accessible SVG', () => {
       threeClock.release();
       render(
         <ClockDisplay
@@ -117,10 +117,11 @@ describe('ClockDisplay', () => {
         />,
       );
 
-      const clock = await screen.findByTestId('three-clock');
+      const clock = screen.getByTestId('cuckoo-clock');
 
-      expect(clock).toHaveAttribute('data-mode', 'cuckoo');
-      expect(clock).toHaveAttribute('data-strikes', '12');
+      expect(clock.tagName.toLowerCase()).toBe('svg');
+      expect(clock).toHaveAccessibleName(/cuckoo clock showing/i);
+      expect(screen.queryByTestId('three-clock')).not.toBeInTheDocument();
     });
   });
 });

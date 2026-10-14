@@ -5,3 +5,42 @@
   --font-sans: "Noto Sans", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Noto Sans Mono", ui-monospace, SFMono-Regular, monospace;
 }
+
+.cuckoo-pendulum {
+  transform-box: view-box;
+  transform-origin: 200px 382px;
+  animation: cuckoo-pendulum-swing 2s ease-in-out infinite;
+}
+
+@keyframes cuckoo-pendulum-swing {
+  0%, 100% { transform: rotate(-8deg); }
+  50% { transform: rotate(8deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cuckoo-pendulum {
+    animation: none;
+  }
+}
+
+.cuckoo-dancer {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+}
+
+[data-dancing="true"] .cuckoo-dancer {
+  animation: cuckoo-dancer-turn 2.4s ease-in-out infinite;
+}
+
+@keyframes cuckoo-dancer-turn {
+  0%, 100% { transform: scaleX(1) rotate(-5deg); }
+  25% { transform: scaleX(0.55) rotate(0deg); }
+  50% { transform: scaleX(1) rotate(5deg); }
+  75% { transform: scaleX(0.55) rotate(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-dancing="true"] .cuckoo-dancer {
+    animation: none;
+  }
+}

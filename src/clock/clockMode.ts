@@ -24,6 +24,8 @@ export type ThreeClockMode = Exclude<ClockMode, 'digital'>;
 export type ChimeAnimation = {
   id: number;
   strikes: number;
+  startedAtMilliseconds?: number;
+  strikeOffsetsMilliseconds?: readonly number[];
 };
 
 export const CLOCK_MODE_STORAGE_KEY = 'chime-clock-mode';

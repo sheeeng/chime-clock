@@ -15,7 +15,10 @@ vi.mock('./audio/chimes', async (importOriginal) => {
 
   return {
     ...original,
-    playChime: vi.fn(() => ({ stop: stopPlayback })),
+    playChime: vi.fn((_context, _style, count, _timing, onSchedule) => {
+      onSchedule?.({ startedAtMilliseconds: performance.now(), strikeOffsetsMilliseconds: Array.from({ length: count }, (_, index) => index * 1000) });
+      return { stop: stopPlayback };
+    }),
   };
 });
 
@@ -41,6 +44,26 @@ vi.mock('./clock/ThreeClock', () => ({
     <div
       data-testid="three-clock"
       data-mode={mode}
+      data-time={time.toISOString()}
+      data-chime-id={chimeAnimation ? String(chimeAnimation.id) : 'none'}
+      data-strikes={chimeAnimation ? String(chimeAnimation.strikes) : 'none'}
+    />
+  ),
+}));
+
+vi.mock('./clock/CuckooClock', () => ({
+  CuckooClock: ({
+    mode,
+    time,
+    chimeAnimation,
+  }: {
+    mode: string;
+    time: Date;
+    chimeAnimation: { id: number; strikes: number } | null;
+  }) => (
+    <div
+      data-testid="cuckoo-clock"
+      data-mode="cuckoo"
       data-time={time.toISOString()}
       data-chime-id={chimeAnimation ? String(chimeAnimation.id) : 'none'}
       data-strikes={chimeAnimation ? String(chimeAnimation.strikes) : 'none'}
@@ -288,6 +311,7 @@ describe('App', () => {
       'classic',
       12,
       'hour',
+      expect.any(Function),
     );
   });
 
@@ -303,6 +327,7 @@ describe('App', () => {
       'modern',
       1,
       'hour',
+      expect.any(Function),
     );
   });
 
@@ -322,6 +347,7 @@ describe('App', () => {
       style,
       1,
       'hour',
+      expect.any(Function),
     );
   });
 
@@ -338,6 +364,7 @@ describe('App', () => {
       'classic',
       1,
       timing,
+      expect.any(Function),
     );
   });
 
@@ -375,6 +402,7 @@ describe('App', () => {
       'classic',
       11,
       'hour',
+      expect.any(Function),
     );
   });
 
@@ -413,6 +441,7 @@ describe('App', () => {
         'classic',
         1,
         timing,
+        expect.any(Function),
       );
     },
   );
@@ -473,14 +502,15 @@ describe('App', () => {
     it.each([
       ['Analog', 'analog'],
       ['Cuckoo', 'cuckoo'],
-    ] as const)('saves %s and renders the lazy model', async (label, mode) => {
+    ] as const)('saves %s and renders the selected clock', async (label, mode) => {
       render(<App />);
 
       fireEvent.click(optionRadio('Clock', label));
-      await waitForTestId('three-clock');
+      const clockIdentifier = mode === 'cuckoo' ? 'cuckoo-clock' : 'three-clock';
+      await waitForTestId(clockIdentifier);
 
       expect(window.localStorage.getItem(CLOCK_MODE_STORAGE_KEY)).toBe(mode);
-      expect(screen.getByTestId('three-clock')).toHaveAttribute(
+      expect(screen.getByTestId(clockIdentifier)).toHaveAttribute(
         'data-mode',
         mode,
       );
@@ -532,15 +562,15 @@ describe('App', () => {
     async function renderCuckoo() {
       render(<App />);
       fireEvent.click(optionRadio('Clock', 'Cuckoo'));
-      await waitForTestId('three-clock');
+      await waitForTestId('cuckoo-clock');
     }
 
     function chimeStrikes() {
-      return screen.getByTestId('three-clock').getAttribute('data-strikes');
+      return screen.getByTestId('cuckoo-clock').getAttribute('data-strikes');
     }
 
     function chimeIdentifier() {
-      return screen.getByTestId('three-clock').getAttribute('data-chime-id');
+      return screen.getByTestId('cuckoo-clock').getAttribute('data-chime-id');
     }
 
     it('emits the hour strike count at an hourly boundary', async () => {

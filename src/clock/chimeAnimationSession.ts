@@ -62,6 +62,7 @@ type ObservedChimeAnimation = {
  * mounted, so the renderer always measures the sequence from its true origin.
  */
 export type ChimeSequence = {
+  strikeOffsetsMilliseconds?: readonly number[];
   strikes: number;
   startedAtMilliseconds: number;
 };
@@ -146,7 +147,7 @@ export function observeChimeAnimation(
   observedChimeAnimation = {
     id: animation.id,
     strikes: animation.strikes,
-    startedAtMilliseconds: performance.now(),
+    startedAtMilliseconds: animation.startedAtMilliseconds ?? performance.now(),
   };
 
   return observedChimeAnimation.startedAtMilliseconds;
@@ -196,13 +197,13 @@ export function useChimeAnimationSession(
       return;
     }
 
-    const startedAtMilliseconds = observeChimeAnimation({ id, strikes });
+    const startedAtMilliseconds = observeChimeAnimation(animation);
 
     // A refusal is not a withdrawal. Whatever sequence this consumer already
     // resolved keeps running exactly as it was.
     if (startedAtMilliseconds === null) return;
 
-    sequenceRef.current = { strikes, startedAtMilliseconds };
+    sequenceRef.current = { strikes, startedAtMilliseconds, strikeOffsetsMilliseconds: animation?.strikeOffsetsMilliseconds };
   }, [id, strikes]);
 
   return sequenceRef;

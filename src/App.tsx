@@ -332,10 +332,11 @@ export default function App() {
       style,
       count,
       timing,
+      schedule => setChimeAnimation({
+        ...nextChimeAnimation(schedule.strikeOffsetsMilliseconds.length),
+        ...schedule,
+      }),
     );
-    // The bird runs exactly as many cycles as the sequence has strikes, so
-    // the drawing and the sound always agree.
-    setChimeAnimation(nextChimeAnimation(count));
   };
 
   const handleClockModeChange = (mode: ClockMode) => {

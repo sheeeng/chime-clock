@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChimeAnimationSession } from './chimeAnimationSession';
 import type { ChimeAnimation, ClockMode } from './clockMode';
+import { CuckooClock } from './CuckooClock';
 
 // Three.js, the loaders, and the model assets only arrive with this chunk, so
 // the digital mode never downloads them.
@@ -101,6 +102,14 @@ export function ClockDisplay({
   useChimeAnimationSession(chimeAnimation);
 
   if (mode === 'digital') return <DigitalClock time={time} hasSeasonalBackground={hasSeasonalBackground} />;
+
+  if (mode === 'cuckoo') {
+    return (
+      <div className="relative w-full max-w-3xl aspect-[16/10]">
+        <CuckooClock time={time} chimeAnimation={chimeAnimation} />
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full max-w-3xl aspect-[16/10]">

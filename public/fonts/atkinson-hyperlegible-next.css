@@ -1,0 +1,7 @@
+@font-face {
+  font-family: "Atkinson Hyperlegible Next";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./atkinson-hyperlegible-next-600.ttf") format("truetype");
+}

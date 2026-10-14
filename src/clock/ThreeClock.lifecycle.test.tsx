@@ -734,10 +734,7 @@ describe('ThreeClock lifecycle', () => {
       now = 9_125;
       stepFrame();
 
-      const { doorPivot, bird } = cuckooParts();
-
-      expect(doorPivot.rotation.y).toBe(0);
-      expect(bird.visible).toBe(false);
+      expect(screen.getByTestId('cuckoo-bird')).toHaveAttribute('opacity', '0');
     });
 
     it('resumes a sequence that is still running in another mode', async () => {
@@ -761,9 +758,7 @@ describe('ThreeClock lifecycle', () => {
       await waitForReadyClock();
       stepFrame();
 
-      expect(cuckooParts().doorPivot.rotation.y).toBeCloseTo(
-        CUCKOO_DOOR_OPEN_RADIANS / 2,
-      );
+      expect(screen.getByTestId('cuckoo-bird')).toHaveAttribute('opacity', '0.5');
     });
   });
 });

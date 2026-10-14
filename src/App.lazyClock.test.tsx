@@ -48,7 +48,7 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-it('loads the Three.js clock only once a model clock is selected', async () => {
+it('loads Three.js for Analog and keeps Cuckoo independent of models', async () => {
   render(<App />);
 
   await drainPendingWork();
@@ -57,8 +57,7 @@ it('loads the Three.js clock only once a model clock is selected', async () => {
   expect(screen.getByTestId('digital-clock')).toBeInTheDocument();
 
   // The Clock selector holds manual activation, so arrowing from Digital,
-  // through Analog, and on to Cuckoo must not load the module either one
-  // needs.
+  // through Analog, and on to Cuckoo does not load the model module.
   const digitalRadio = screen.getByRole('radio', { name: 'Digital' });
   digitalRadio.focus();
   fireEvent.keyDown(digitalRadio, { key: 'ArrowRight' });
@@ -76,6 +75,11 @@ it('loads the Three.js clock only once a model clock is selected', async () => {
   expect(threeClock.imported).not.toHaveBeenCalled();
   expect(screen.getByTestId('digital-clock')).toBeInTheDocument();
   expect(screen.getByRole('radio', { name: 'Digital' })).toBeChecked();
+
+  fireEvent.click(cuckooRadio);
+  await drainPendingWork();
+  expect(screen.getByTestId('cuckoo-clock')).toBeInTheDocument();
+  expect(threeClock.imported).not.toHaveBeenCalled();
 
   fireEvent.click(analogRadio);
 

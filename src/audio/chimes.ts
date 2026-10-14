@@ -9,6 +9,25 @@ export type ChimePlayback = {
   stop: () => void;
 };
 
+export type ChimeSchedule = {
+  startedAtMilliseconds: number;
+  strikeOffsetsMilliseconds: readonly number[];
+};
+
+type ScheduleListener = (schedule: ChimeSchedule) => void;
+
+function reportSchedule(
+  context: AudioContext,
+  firstStartTime: number,
+  offsetsSeconds: readonly number[],
+  onSchedule?: ScheduleListener,
+) {
+  onSchedule?.({
+    startedAtMilliseconds: performance.now() + (firstStartTime - context.currentTime) * 1000,
+    strikeOffsetsMilliseconds: offsetsSeconds.map(offset => offset * 1000),
+  });
+}
+
 export type ChimeTiming = 'half-hour' | 'hour' | 'quarter';
 
 export function getHourlyChimeCount(date: Date): number {
@@ -162,6 +181,7 @@ function playClassicRecording(
   sources: AudioScheduledSourceNode[],
   count: number,
   isCancelled: () => boolean,
+  onSchedule?: ScheduleListener,
 ) {
   const output = context.createGain();
 
@@ -194,6 +214,13 @@ function playClassicRecording(
           ? [0, 3]
           : [0, 1, ...Array(count - 2).fill(2), 3];
       let startTime = context.currentTime + 0.01;
+      let offsetSeconds = buffers[sequence[0]].duration;
+      const strikeOffsets = sequence.slice(1).map(segmentIndex => {
+        const offset = offsetSeconds;
+        offsetSeconds += buffers[segmentIndex].duration;
+        return offset;
+      });
+      reportSchedule(context, startTime, strikeOffsets, onSchedule);
 
       sequence.forEach((segmentIndex) => {
         const source = context.createBufferSource();
@@ -263,6 +290,7 @@ function playBellRecording(
   sources: AudioScheduledSourceNode[],
   count: number,
   isCancelled: () => boolean,
+  onSchedule?: ScheduleListener,
 ) {
   const output = context.createGain();
 
@@ -283,6 +311,7 @@ function playBellRecording(
       if (isCancelled()) return;
 
       const firstStartTime = context.currentTime + 0.01;
+      reportSchedule(context, firstStartTime, Array.from({ length: count }, (_, strike) => strike * buffer.duration), onSchedule);
       for (let strike = 0; strike < count; strike += 1) {
         const source = context.createBufferSource();
 
@@ -300,7 +329,7 @@ function playBellRecording(
 
 let westminsterBufferPromise: Promise<AudioBuffer> | null = null;
 
-function playWestminsterRecording(context: AudioContext): ChimePlayback {
+function playWestminsterRecording(context: AudioContext, onSchedule?: ScheduleListener): ChimePlayback {
   let source: AudioBufferSourceNode | null = null;
   let stopped = false;
 
@@ -320,6 +349,7 @@ function playWestminsterRecording(context: AudioContext): ChimePlayback {
       source = context.createBufferSource();
       source.buffer = buffer;
       source.connect(context.destination);
+      reportSchedule(context, context.currentTime, [0], onSchedule);
       source.start();
     })
     .catch((error: unknown) => {
@@ -341,6 +371,7 @@ export function playChime(
   style: ChimeStyle,
   count = 1,
   timing: ChimeTiming = 'quarter',
+  onSchedule?: ScheduleListener,
 ): ChimePlayback | null {
   if (!context) return null;
 
@@ -349,7 +380,7 @@ export function playChime(
   }
 
   if (style === 'westminster') {
-    return playWestminsterRecording(context);
+    return playWestminsterRecording(context, onSchedule);
   }
 
   const output = context.createGain();
@@ -366,12 +397,16 @@ export function playChime(
       sources,
       strikeCount,
       () => stopped,
+      onSchedule,
     );
   } else if (style === 'modern') {
+    reportSchedule(context, context.currentTime, Array.from({ length: strikeCount }, (_, strike) => strike * 2.4), onSchedule);
     playModernChime(context, output, sources, strikeCount);
   } else if (style === 'cuckoo') {
+    reportSchedule(context, context.currentTime, cuckooCallTimes.slice(0, strikeCount), onSchedule);
     playCuckooChime(context, output, sources, strikeCount);
   } else if (timing === 'quarter') {
+    reportSchedule(context, context.currentTime, [0], onSchedule);
     playSynthesizedClassicChime(context, output, sources);
   } else {
     playClassicRecording(
@@ -380,6 +415,7 @@ export function playChime(
       sources,
       strikeCount,
       () => stopped,
+      onSchedule,
     );
   }
 

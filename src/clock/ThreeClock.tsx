@@ -17,34 +17,10 @@ type HandRotations = {
   second: number;
 };
 
-type CuckooAnimation = {
-  active: boolean;
-  birdOffset: number;
-  doorRotation: number;
-};
+import { getCuckooAnimation } from './cuckooAnimation';
+export { CUCKOO_CYCLE_MILLISECONDS, CUCKOO_DOOR_OPEN_RADIANS, getCuckooAnimation } from './cuckooAnimation';
 
-/** One bird cycle lasts exactly one second. */
-export const CUCKOO_CYCLE_MILLISECONDS = 1000;
-
-/** The door stands fully open at a quarter turn. */
-export const CUCKOO_DOOR_OPEN_RADIANS = Math.PI / 2;
-
-/**
- * The door and the procedural bird grow to this many times their modeled
- * size. The door widens and heightens only, so its depth and hinge stay as
- * modeled, and the bird's size, resting position, and travel scale with it.
- */
 export const CUCKOO_ENLARGEMENT_SCALE = 1.5;
-
-const CUCKOO_EXIT_MILLISECONDS = 250;
-const CUCKOO_HOLD_MILLISECONDS = 500;
-const CUCKOO_RETURN_MILLISECONDS = 750;
-
-const IDLE_CUCKOO_ANIMATION: CuckooAnimation = {
-  active: false,
-  birdOffset: 0,
-  doorRotation: 0,
-};
 
 /**
  * Returns the clockwise hand rotations, in radians, for the local time. A
@@ -60,49 +36,6 @@ export function getHandRotations(date: Date): HandRotations {
     hour: -(hours / 12) * Math.PI * 2,
     minute: -(minutes / 60) * Math.PI * 2,
     second: -(seconds / 60) * Math.PI * 2,
-  };
-}
-
-/**
- * Returns the cuckoo door and bird placement for the elapsed time of a chime
- * sequence. Each strike runs one cycle: the door opens and the bird leaves
- * during the first quarter second, the bird waits outside until the half
- * second, the bird returns and the door closes by three quarters of a second,
- * and the door stays closed until the second ends.
- */
-export function getCuckooAnimation(
-  elapsedMilliseconds: number,
-  strikes: number,
-): CuckooAnimation {
-  if (!Number.isFinite(elapsedMilliseconds) || strikes <= 0) {
-    return IDLE_CUCKOO_ANIMATION;
-  }
-
-  if (
-    elapsedMilliseconds < 0 ||
-    elapsedMilliseconds >= strikes * CUCKOO_CYCLE_MILLISECONDS
-  ) {
-    return IDLE_CUCKOO_ANIMATION;
-  }
-
-  const phase = elapsedMilliseconds % CUCKOO_CYCLE_MILLISECONDS;
-  let birdOffset = 0;
-
-  if (phase < CUCKOO_EXIT_MILLISECONDS) {
-    birdOffset = phase / CUCKOO_EXIT_MILLISECONDS;
-  } else if (phase < CUCKOO_HOLD_MILLISECONDS) {
-    birdOffset = 1;
-  } else if (phase < CUCKOO_RETURN_MILLISECONDS) {
-    birdOffset =
-      1 -
-      (phase - CUCKOO_HOLD_MILLISECONDS) /
-        (CUCKOO_RETURN_MILLISECONDS - CUCKOO_HOLD_MILLISECONDS);
-  }
-
-  return {
-    active: true,
-    birdOffset,
-    doorRotation: birdOffset * CUCKOO_DOOR_OPEN_RADIANS,
   };
 }
 
@@ -642,7 +575,7 @@ export default function ThreeClock({
           : 0;
         // The hook owns the sequence ref. The loop only reads it, and an
         // exhausted sequence already resolves to the idle placement.
-        const state = getCuckooAnimation(elapsed, sequence?.strikes ?? 0);
+        const state = getCuckooAnimation(elapsed, sequence?.strikes ?? 0, sequence?.strikeOffsetsMilliseconds);
 
         cuckoo.doorPivot.rotation.y = state.doorRotation;
         cuckoo.bird.position.z =
