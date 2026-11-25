@@ -24,7 +24,7 @@ workflows:
         - 'actions/dependency-review-action@v5.0.1'
     '.github/workflows/update-flake-lock.yaml':
         - 'actions/checkout@v7.0.1'
-        - 'determinatesystems/determinate-nix-action@v3.24.2'
+        - 'determinatesystems/determinate-nix-action@v3.24.3'
         - 'determinatesystems/update-flake-lock@v29'
 dependencies:
     'actions/checkout@v7.0.1':
@@ -74,16 +74,16 @@ dependencies:
         commit: 'sha1-6929a9a6d1807689191dcc8bbe62b54d70a32b42'
         owner_id: 957246
         repo_id: 258052107
-    'determinatesystems/determinate-nix-action@v3.24.2':
-        ref: 'v3.24.2'
-        commit: 'sha1-16f94ba7aae399b9f9077c254b6719ec6de7e3e3'
+    'determinatesystems/determinate-nix-action@v3.24.3':
+        ref: 'v3.24.3'
+        commit: 'sha1-4b040423529d49b1a19ba918742e0aa9aa95031a'
         owner_id: 80991770
         repo_id: 983748827
         uses:
-            - 'determinatesystems/nix-installer-action@9383ce2bf08796b65508822f5982f49151badc4e'
-    'determinatesystems/nix-installer-action@9383ce2bf08796b65508822f5982f49151badc4e':
+            - 'determinatesystems/nix-installer-action@2559b44fed7d4fc978e8dd0e379661afb8b73590'
+    'determinatesystems/nix-installer-action@2559b44fed7d4fc978e8dd0e379661afb8b73590':
         ref: 'main'
-        commit: 'sha1-9383ce2bf08796b65508822f5982f49151badc4e'
+        commit: 'sha1-2559b44fed7d4fc978e8dd0e379661afb8b73590'
         owner_id: 80991770
         repo_id: 588678074
     'determinatesystems/update-flake-lock@v29':
